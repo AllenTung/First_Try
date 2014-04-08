@@ -1,0 +1,6 @@
+ip:127.0.0.1
+port:888
+server_id:44
+thread_num:4
+doc_root:I:
+
