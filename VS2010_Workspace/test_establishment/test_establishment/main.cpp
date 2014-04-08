@@ -8,5 +8,6 @@ int main()
 {
 	int forcin = 0;
 	cout << "Hello test!!!" <<endl;
+	cout << "Hello tortoise!!!" << endl;
 	cin >> forcin;
 }
