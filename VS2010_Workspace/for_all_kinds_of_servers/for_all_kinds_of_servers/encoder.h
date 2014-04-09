@@ -47,7 +47,7 @@ public:
 	int encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> ec_socket, request& ori_req, int server_id);
 
 	//These two funtions are called when POST_REQUEST is done being handled at master node
-	void make_transmit_block_request(requst ori_request);
+	void make_transmit_block_request(request ori_request);
 	void make_transmit_data_request(request ori_request);
 
 	void handle_write(const boost::system::error_code& e);

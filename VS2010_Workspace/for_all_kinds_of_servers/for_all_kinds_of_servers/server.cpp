@@ -76,7 +76,7 @@ void server::start_accept()
 
 	if(pick_conn >= 0)
 	{
-		acceptor_.async_accept(connection_pool.at(pick_conn)->socket(), boost::bind(&server::handle_accept, this, connection_pool.at(pick_conn), boost::asio::placeholders::error));
+		acceptor_.async_accept(connection_pool.at(pick_conn)->socket_, boost::bind(&server::handle_accept, this, connection_pool.at(pick_conn), boost::asio::placeholders::error));
 	}
 	else if (pick_conn == -1)
 	{
@@ -87,7 +87,7 @@ void server::start_accept()
 		cout << "\n*************************\n" << conn_count << "\n*************************\n";
 
 		/*	new_connection_.reset(new connection(io_pool.get_io_service(), request_handler_, server_id));*/
-		acceptor_.async_accept(new_conn->socket(), boost::bind(&server::handle_accept, this, new_conn, boost::asio::placeholders::error));
+		acceptor_.async_accept(new_conn->socket_, boost::bind(&server::handle_accept, this, new_conn, boost::asio::placeholders::error));
 	}
 }
 
