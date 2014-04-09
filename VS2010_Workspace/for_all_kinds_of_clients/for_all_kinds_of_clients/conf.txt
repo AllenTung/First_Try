@@ -1,5 +1,0 @@
-client_id:888
-thread_num:4
-client_pool:4
-target_port:888
-
