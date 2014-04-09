@@ -142,6 +142,7 @@ int main()
 	}
 
 	cin >> forcin;
+	cout << "just for a sign of updated!" << endl;
 
 	return 0;
 }
