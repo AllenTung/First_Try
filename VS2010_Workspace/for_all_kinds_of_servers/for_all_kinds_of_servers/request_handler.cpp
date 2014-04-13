@@ -14,6 +14,31 @@ request_handler::request_handler(const string& doc_root, int s_id) : doc_root_(d
 {
 	server_id = s_id;
 }
+
+void request_handler::handle_transmit_block_request(const request& req, reply& rep)
+{
+	cout << "Now making an ready for transmit block from server: " << server_id << "....\n";
+
+	rep.server_status = "ready_for_post";
+	rep.server_id = server_id;
+	rep.headers.resize(3);
+	char tmp_char[30];
+	_itoa(req.content_length, tmp_char, 10);
+	time_t tt = time(0);
+	rep.headers[0].name = "Content-Length";
+	rep.headers[0].value = tmp_char;
+
+	//Amend the hearder to simply answer ACK
+	rep.headers[1].name = "Server-Status";
+	rep.headers[1].value = "Ready";
+
+	// Time
+	rep.headers[2].name = "Date";
+	rep.headers[2].value = ctime(&tt);
+
+}
+
+
 void request_handler::handle_post_request(const request& req, reply& rep)
 {
 	//If this could be entered, then the server status must be ready for post
@@ -28,7 +53,7 @@ void request_handler::handle_post_request(const request& req, reply& rep)
 	time_t tt = time(0);
 	rep.headers[0].name = "Content-Length";
 	rep.headers[0].value = tmp_char;
-
+	                              
 	//Amend the hearder to simply answer ACK
 	rep.headers[1].name = "Server-Status";
 	rep.headers[1].value = "Ready";

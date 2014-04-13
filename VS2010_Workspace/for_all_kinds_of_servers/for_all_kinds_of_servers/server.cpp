@@ -88,7 +88,7 @@ void server::start_accept()
 
 		/*	new_connection_.reset(new connection(io_pool.get_io_service(), request_handler_, server_id));*/
 		acceptor_.async_accept(new_conn->socket_, boost::bind(&server::handle_accept, this, new_conn, boost::asio::placeholders::error));
-	}
+	}                      
 }
 
 void server::handle_accept(connection_ptr& current_connection, const boost::system::error_code& e)

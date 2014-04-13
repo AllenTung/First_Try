@@ -3,7 +3,7 @@
 #include <iostream>
 #include <string>
 #include "common.h"
-
+using namespace std;
 string get_random_file_name(int thread_id)
 {
 	//Current setting relates to the thread_id , just to check the concurrent read operation

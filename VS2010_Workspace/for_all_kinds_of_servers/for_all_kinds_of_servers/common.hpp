@@ -28,10 +28,11 @@ typedef boost::shared_ptr<boost::asio::ip::tcp::socket> socket_ptr;
 #define BUFFER_SIZE 8192
 #define THREAD_NUMBER 5
 
-#define RECEIVE_BUFFER_SIZE 65536
+#define RECEIVE_BUFFER_SIZE 8192
+#define RECEIVE_BUFFER_SIZE_TINY 256
 
 //Request Type between client and server
-#define GET_REQUEST 1
+#define GET_REQUEST 1 
 #define POST_REQUEST 2
 #define UPDATE_REQUEST 3
 
@@ -48,17 +49,15 @@ typedef boost::shared_ptr<boost::asio::ip::tcp::socket> socket_ptr;
 #define NO_SUCH_SUBSTRING 1000000
 
 //Parameters for endoer and decoder
-#define ERASURE_CODE_K 5
+#define ERASURE_CODE_K 4
 #define ERASURE_CODE_M 2
 #define ERASURE_CODE_W 8
 #define ERASURE_CODE_PACKETSIZE 1024
 #define ERASURE_CODE_BUFFERSIZE 1024
-#define ERASURE_CODE_WORD_SIZE 8
 
 
 //Max number of servers
-#define NUMBER_OF_SERVER 256
-
+#define NUMBER_OF_SERVER 2560
 
 extern vector<string> split(string& str,const char* c);
 

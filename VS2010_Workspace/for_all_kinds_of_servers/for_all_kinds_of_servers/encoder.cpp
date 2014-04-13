@@ -11,8 +11,17 @@ encoder::encoder()
 	readins = 0;
 	n = 1;
 	ack_received = 0;
-}
 
+	unit_size = sizeof(char);
+}
+void encoder::gather_ack(const boost::system::error_code& e)
+{
+	ack_received ++;
+
+	cout << "********************************************" << endl;
+	cout << "********** Now the number of ACK is: " << ack_received << "********" << endl;
+	cout << "********************************************" << endl;
+}
 int encoder::jfread(void *ptr, int size, int nmembers, FILE *stream)
 {
 	int nd;
@@ -21,7 +30,7 @@ int encoder::jfread(void *ptr, int size, int nmembers, FILE *stream)
 	{
 		return fread(ptr, size, nmembers, stream);
 	}
-	nd = size/sizeof(int);
+	nd = size/unit_size;
 	li = (int *) ptr;
 	for (i = 0; i < nd; i++)
 	{
@@ -35,16 +44,16 @@ int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> 
 	//word_size,即系将一个文件，比如一个大文本，分成了很多个word，然后每个word是多大
 	//Packetsize, 必须是word的整数倍，这个encode时的单位
 	//buffersize，在下面还要通过上下取整来调整到最佳
-	int argc = 8;
-
-	char* source_path = "I://VS2010_Workspace//for_all_kinds_of_servers//for_all_kinds_of_servers//test.txt";
 	char* coding_path = "I://VS2010_Workspace//for_all_kinds_of_servers//for_all_kinds_of_servers//Coding";
+
+	char* source_path = const_cast<char*>(ori_req.obj_id.c_str());
 
 	int k = ERASURE_CODE_K;
 	int m = ERASURE_CODE_M;
-	int w = ERASURE_CODE_WORD_SIZE;
+	int w = ERASURE_CODE_W;
 	int packetsize = ERASURE_CODE_PACKETSIZE;		
-	int buffersize = ERASURE_CODE_BUFFERSIZE;	
+	int buffersize = 8388608;
+
 
 	int i;				
 	int blocksize;					
@@ -95,11 +104,11 @@ int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> 
 	/* 通过向上向下取整来获得最佳的buffersize  */
 	if (buffersize != 0) 
 	{
-		if (packetsize != 0 && buffersize%(sizeof(int)*w*k*packetsize) != 0) 
+		if (packetsize != 0 && buffersize%(unit_size*w*k*packetsize) != 0) 
 		{ 
 			up = buffersize;
 			down = buffersize;
-			while (up%(sizeof(int)*w*k*packetsize) != 0 && (down%(sizeof(int)*w*k*packetsize) != 0)) 
+			while (up%(unit_size*w*k*packetsize) != 0 && (down%(unit_size*w*k*packetsize) != 0)) 
 			{
 				up++;
 				if (down == 0)
@@ -107,7 +116,7 @@ int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> 
 					down--;
 				}
 			}
-			if (up%(sizeof(int)*w*k*packetsize) == 0) 
+			if (up%(unit_size*w*k*packetsize) == 0) 
 			{
 				buffersize = up;
 			}
@@ -119,16 +128,16 @@ int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> 
 				}
 			}
 		}
-		else if (packetsize == 0 && buffersize%(sizeof(int)*w*k) != 0)
+		else if (packetsize == 0 && buffersize%(unit_size*w*k) != 0)
 		{
 			up = buffersize;
 			down = buffersize;
-			while (up%(sizeof(int)*w*k) != 0 && down%(sizeof(int)*w*k) != 0) 
+			while (up%(unit_size*w*k) != 0 && down%(unit_size*w*k) != 0) 
 			{
 				up++;
 				down--;
 			}
-			if (up%(sizeof(int)*w*k) == 0) 
+			if (up%(unit_size*w*k) == 0) 
 			{
 				buffersize = up;
 			}
@@ -142,6 +151,8 @@ int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> 
 	/* Get current working directory for construction of file names */
 	curdir = (char*)malloc(sizeof(char)*1000);	
 	_getcwd(curdir, 1000);
+
+	/* 这里以后要考虑并发操作的问题 ， 其他操作也在读或者有的操作在update的时候 */
 
 	fp = fopen(source_path, "rb");
 	if (fp == NULL) 
@@ -164,13 +175,15 @@ int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> 
 	fseek(fp, 0,SEEK_SET);
 
 	newsize = size;
+
+	cout << "The size of the to-be-encoded file is : " << size << "B !!!!!!!!!!!!!!!!!!" << endl;
 	
 	/* Find new size by determining next closest multiple */
 	if (packetsize != 0) 
 	{
-		if (size%(k*w*packetsize*sizeof(int)) != 0) 
+		if (size%(k*w*packetsize*unit_size) != 0) 
 		{
-			while (newsize%(k*w*packetsize*sizeof(int)) != 0)
+			while (newsize%(k*w*packetsize*unit_size) != 0)
 			{
 				newsize++;
 			}
@@ -178,13 +191,13 @@ int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> 
 	}
 	else
 	{
-		if (size%(k*w*sizeof(int)) != 0)
+		if (size%(k*w*unit_size) != 0)
 		{
-			while (newsize%(k*w*sizeof(int)) != 0) 
+			while (newsize%(k*w*unit_size) != 0) 
 				newsize++;
 		}
 	}
-	
+
 	if (buffersize != 0) 
 	{
 		while (newsize%buffersize != 0) 
@@ -207,19 +220,25 @@ int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> 
 		{
 			readins = newsize/buffersize;
 		}
-		block = (char *)malloc(sizeof(char)*buffersize);
+		block = (char *)malloc(unit_size*buffersize);
 		blocksize = buffersize/k;
 	}
 	else 
 	{
 		readins = 1;
 		buffersize = size;
-		block = (char *)malloc(sizeof(char)*newsize);
+		block = (char *)malloc(unit_size*newsize);
 	}
 	
+	cout << "buffersize:" << buffersize << endl;
+	cout << "newsize:" << newsize << endl;
+	cout << "size:" << size << endl;
+	cout << "blocksize:" << blocksize << endl;
+
 	/* Break inputfile name into the filename and extension */	
-	s1 = (char*)malloc(sizeof(char)*(strlen(source_path)+10));
+	s1 = (char*)malloc(sizeof(char)*((strlen(source_path) + 10)));
 	s2 = strrchr(source_path, '/');
+
 	if (s2 != NULL) 
 	{
 		s2++;
@@ -235,24 +254,24 @@ int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> 
 		*s2 = '\0';
 	}
 	fname = strchr(source_path, '.');
-	s2 = (char*)malloc(sizeof(char)*(strlen(source_path)+5));
+	s2 = (char*)malloc(sizeof(char)*(strlen(source_path) + 5));
 	if (fname != NULL)
 	{
 		strcpy(s2, fname);
 	}
 	
 	/* Allocate for full file name */
-	fname = (char*)malloc(sizeof(char)*(strlen(source_path)+strlen(curdir)+10));
+	fname = (char*)malloc(sizeof(char)*(strlen(source_path) + strlen(curdir) + 10));
 	sprintf(temp, "%d", k);
 	md = strlen(temp);
 	
 	/* Allocate data and coding */
-	data = (char **)malloc(sizeof(char*)*k);
-	coding = (char **)malloc(sizeof(char*)*m);
+	data = (char**)malloc(sizeof(char*)*k);
+	coding = (char**)malloc(sizeof(char*)*m);
 
 	for (i = 0; i < m; i++)
 	{
-		coding[i] = (char *)malloc(sizeof(char)*blocksize);
+		coding[i] = (char *)malloc(unit_size*blocksize);
 	}
 
 	/* Create coding matrix or bitmatrix and schedule */
@@ -282,47 +301,46 @@ int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> 
 	//测试阶段先使得这些要接受数据块和校验快的server是一些端口递增的server进程
 	//先向每个server发出一个transmit_data或transmit_parity的请求，然后在下面的while循环的时候再不断地把数据传送到对应的server上
 
-	for (int for_k = 1; for_k <= ERASURE_CODE_K; for_k++)
+	for (int i = 1; i <= k + m ; i++)
 	{
-		int next_target_server = (server_id + for_k) % NUMBER_OF_SERVER;
 
 		//Connect the next targeted server and send a transmit_data request
+		int next_target_server = (server_id + i) % NUMBER_OF_SERVER;
 		tcp::endpoint end_p(boost::asio::ip::address_v4::from_string("127.0.0.1"), next_target_server);
-		ec_socket.at(for_k - 1)->connect(end_p);
+		ec_socket.at(i - 1)->connect(end_p);
 
 		request transmit_data_request(ori_req);
-		transmit_data_request.method = "TRANSMIT_DATA_BLOCK";
-		transmit_data_request.content_length /= ERASURE_CODE_K;
+		if (i <= k)
+		{
+			transmit_data_request.method = "TRANSMIT_DATA_BLOCK";
+			sprintf(fname, "%s\\%s_k%0*d%s", curdir, s1, md, i, s2);
+		}
+		else
+		{
+			transmit_data_request.method = "TRANSMIT_PARITY_BLOCK";
+			sprintf(fname, "%s\\%s_m%0*d%s", curdir, s1, md, i - k, s2);
+		}
+		transmit_data_request.content_length /= k;
+		transmit_data_request.obj_id = fname;
 
-		boost::asio::write(*(ec_socket.at(for_k - 1)), transmit_data_request.to_buffers());		
-	}
-
-	for (int for_m = 1; for_m <= ERASURE_CODE_M; for_m++)
-	{
-		int next_target_server = (server_id + ERASURE_CODE_K + for_m) % NUMBER_OF_SERVER;
-
-		//Connect the next targeted server and send a transmit_data request
-		tcp::endpoint end_p(boost::asio::ip::address_v4::from_string("127.0.0.1"), next_target_server);
-		ec_socket.at(ERASURE_CODE_K + for_m - 1)->connect(end_p);
-
-		request transmit_data_request(ori_req);
-		transmit_data_request.method = "TRANSMIT_PARITY_BLOCK";
-		transmit_data_request.content_length /= ERASURE_CODE_K;
-
-		boost::asio::write(*(ec_socket.at(ERASURE_CODE_K + for_m - 1)), transmit_data_request.to_buffers());		
+		boost::asio::write(*(ec_socket.at(i - 1)), transmit_data_request.to_buffers());		
 	}
 
 	while (n <= readins) 
 	{
-		/* Check if padding is needed, if so, add appropriate 
+/* Check if padding is needed, if so, add appropriate 
 		   number of zeros */
+
+		cout << "N:  " << n << endl;
+		cout << "Readins: " << readins << endl;
+
 		if (total < size && total+buffersize <= size) 
 		{
-			total += jfread(block, sizeof(char), buffersize, fp);
+			total += jfread(block, unit_size, buffersize, fp);
 		}
 		else if (total < size && total+buffersize > size) 
 		{
-			extra = jfread(block, sizeof(char), buffersize, fp);
+			extra = jfread(block, unit_size, buffersize, fp);
 			for (i = extra; i < buffersize; i++) {
 				block[i] = '0';
 			}
@@ -349,83 +367,50 @@ int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> 
 		jerasure_schedule_encode(k, m, w, schedule, data, coding, blocksize, packetsize);
 		QueryPerformanceCounter(&t4);
 
-
 		/**********************************************************************************
-
-		*/
-
-
-		/* Write data and encoded data to k+m files 
+		Write data and encoded data to k+m files 
 		这里是写文件的模块，需要扩展成分布式环境下往不同的server上面写文件，要用到tranmit file的函数
 		*********************************************************************************/
 
-		//data segment
-		for	(i = 1; i <= k; i++) 
-		{
-			if (fp == NULL)
-			{
-				memset(data[i-1], 0, blocksize);
- 			} 
-			else 
-			{
-				int temp_length = strlen(data[i - 1]);
-				boost::asio::write(*(ec_socket.at(i - 1)),boost::asio::buffer(data[i - 1], temp_length));
-
-// 				sprintf(fname, "%s\\Coding\\%s_k%0*d%s", curdir, s1, md, i, s2);
-// 				if (n == 1) 
-// 				{
-// 					fp2 = fopen(fname, "wb");
-// 				}
-// 				else 
-// 				{
-// 					fp2 = fopen(fname, "ab");
-// 				}
-// 				fwrite(data[i-1], sizeof(char), blocksize, fp2);
-// 				fclose(fp2);
-
-			}
-			
-		}
-
-		//Parity segment
-		for	(i = 1; i <= m; i++)
+		//Data Segment
+		for	(i = 0; i < k + m; i++) 
 		{
 			if (fp == NULL) 
 			{
-				memset(data[i-1], 0, blocksize);
- 			}
-			else 
-			{
-				int temp_length = strlen(coding[i - 1]);
-				boost::asio::write(*(ec_socket.at(i - 1)),boost::asio::buffer(coding[i - 1], temp_length));
+				memset(data[i], 0, blocksize);
+			}
 
-// 				sprintf(fname, "%s\\Coding\\%s_m%0*d%s", curdir, s1, md, i, s2);
-// 				if (n == 1) 
-// 				{
-// 					fp2 = fopen(fname, "wb");
-// 				}
-// 				else 
-// 				{
-// 					fp2 = fopen(fname, "ab");
-// 				}
-// 				fwrite(coding[i-1], sizeof(char), blocksize, fp2);
-// 				fclose(fp2);
+			if (n == 1)
+			{
+				//Consume the simple reply from other servers as ACK for the first transmit
+				boost::asio::streambuf tmp_response;
+				boost::asio::read_until(*(ec_socket.at(i)), tmp_response, "\r\n");
+			}
+
+			cout << "********* Child Block: = " << i << " ******" << endl;
+
+			boost::system::error_code err_code;
+			if (i < k)
+			{
+				boost::asio::write(*(ec_socket.at(i)), boost::asio::buffer(data[i], blocksize), err_code);
+				//boost::asio::async_write(*(ec_socket.at(i)), boost::asio::buffer(data[i], blocksize), boost::bind(&encoder::gather_ack, this, err_code));
+			}
+			else
+			{
+				boost::asio::write(*(ec_socket.at(i)), boost::asio::buffer(coding[i - k], blocksize), err_code);
+				//boost::asio::async_write(*(ec_socket.at(i)), boost::asio::buffer(coding[i - k], blocksize), err_code, boost::bind(&encoder::gather_ack, this, err_code));
 			}
 		}
 
 		n++;
-
-		/* Calculate encoding time */
 		totalsec += (t4.QuadPart - t3.QuadPart) * 1.0 / tc.QuadPart;
 	}
-
-	/* Create metadata file */
 
 	/* 这里是生成一个meta文件，记录了所有的encoding过程中所用到的信息，但是这个东西不能光存一份在master
 	   可以考虑作为缓存存在proxy server端，也可以在每个相关的server上存一份，再看*/
 	if (fp != NULL) 
 	{
-		sprintf(fname, "%s\\Coding\\%s_meta.txt", curdir, s1);
+		sprintf(fname, "%s\\%s_meta.txt", curdir, s1);
 		fp2 = fopen(fname, "wb");
 		fprintf(fp2, "%s\n", source_path);
 		fprintf(fp2, "%d\n", size);
@@ -444,13 +429,10 @@ int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> 
 	QueryPerformanceCounter(&t2);
 	tsec = (t2.QuadPart - t1.QuadPart) * 1.0 / tc.QuadPart;
 
-	printf("Encoding (MB/sec): %0.10f\n", (size/1024/1024)/(totalsec));
-	printf("En_Total (MB/sec): %0.10f\n", (size/1024/1024)/(tsec));
-
-
+// 	printf("Encoding (MB/sec): %0.10f\n", (size/1024/1024)/(totalsec));
+// 	printf("En_Total (MB/sec): %0.10f\n", (size/1024/1024)/(tsec));
 	return 0;
 }
-
 
 void encoder::handle_write(const boost::system::error_code& e)
 {

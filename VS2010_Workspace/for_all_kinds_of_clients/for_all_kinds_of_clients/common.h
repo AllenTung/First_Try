@@ -18,10 +18,11 @@ using boost::asio::windows::random_access_handle;
 
 #define GET_REQUEST 1
 #define POST_REQUEST 2
+#define UPDATE_REQUEST 3
 #define POST_REQUEST_BUF_SIZE 8192
 
-#define CLIENT_POOL_SIZE 4
-#define THREAD_POOL_SIZE 4
+#define CLIENT_POOL_SIZE 1
+#define THREAD_POOL_SIZE 1
 #define NO_SUCH_SUBSTRING 1000000
 
 #define RECEIVE_BUFFER_SIZE 65536

@@ -20,7 +20,7 @@ public:
 	/// Handle a request and produce a reply.
 	void handle_get_request(const request& req, reply& rep);
 	void handle_post_request(const request& req, reply& rep);
-
+	void handle_transmit_block_request(const request& req, reply& rep);
 	string doc_root_;
 
 };

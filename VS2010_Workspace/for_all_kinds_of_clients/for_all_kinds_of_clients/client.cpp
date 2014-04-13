@@ -121,10 +121,7 @@ void client::launch_post_request(int thread_id)
 		//The faked response cause we assume the server will accept every post request the client sends
 		//And this faked response will end with \r\n
 		boost::asio::streambuf response;
-		vector<char> tmp_response;
 		boost::asio::read_until(client_socket, response, "\r\n");
-/*		client_socket.read_some(boost::asio::buffer(tmp_response));*/
-		tmp_response.clear();
 
 		cout << "After the ACK message client: " << client_id << " begins to transmit the file!\n";
 

@@ -21,6 +21,7 @@ connection::connection(boost::asio::io_service& io_service, request_handler& han
 		socket_ptr temp_socket(new tcp::socket(ec_io_service.get_ec_io_service()));
 		ec_socket.push_back(temp_socket);
 	}
+	after_ec = 0;
 }
 
 // connection::connection(boost::asio::io_service& io_service, const string& filename)
@@ -88,21 +89,13 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 			else if (request_.method == "TRANSMIT_DATA_BLOCK" || request_.method == "TRANSMIT_PARITY_BLOCK")
 			{
 				//Here's the handle process of receiving the data block or parity block
-				//Eliminate the reply for brevity, for now
+				//Reply seems could not be eliminated
 
+				cout << "In handle transmit data block : Dealing with the block with size of : " << request_.content_length << "B ***" << endl;
 
-
-			}
-			else if (request_.method == "POST")
-			{
-				request_handler_.handle_post_request(request_, reply_);
+				request_handler_.handle_transmit_block_request(request_, reply_);
 				boost::system::error_code err_code;
 				boost::asio::write(socket_, reply_.simple_ready_buffers(), err_code);
-				// 				boost::asio::async_write(socket_, reply_.to_buffers(),
-				// 					boost::bind(&connection::handle_write, shared_from_this(), 
-				// 					boost::asio::placeholders::error));
-
-				//After a faked response , prepare the socket for the transmition from the client
 				boost::asio::socket_base::receive_buffer_size option(RECEIVE_BUFFER_SIZE);
 				socket_.set_option(option);
 
@@ -110,16 +103,17 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 				{
 					int forcin = 0;
 					ofstream output_for_trans((request_.obj_id).c_str(), ios::app | ios::binary);
-
 					char* for_recv = new char[RECEIVE_BUFFER_SIZE];
-
 					int per_receive = 0;
 					int tmp_count = 0;
 
 					for(;;)
 					{
-						per_receive = recv(socket_.native_handle(), for_recv, RECEIVE_BUFFER_SIZE, 0);
-						cout << "******************client: " << request_.client_id << "  *****per_receive: " << per_receive << "********" << endl;
+						cout << "In the receiving loop !" << endl;
+						per_receive = boost::asio::read(socket_, boost::asio::buffer(for_recv, RECEIVE_BUFFER_SIZE));
+						//per_receive = boost::asio::read(socket_, for_recv, err_code);
+						//per_receive = recv(socket_.native_handle(), for_recv, RECEIVE_BUFFER_SIZE, 0);
+						cout << "*****per_receive: " << per_receive << "B ********" << endl;
 						
 						if (per_receive <= 0)
 						{
@@ -137,32 +131,85 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 
 						output_for_trans.write(for_recv, per_receive);
 						output_for_trans.flush();
-
-						
-
-						if (tmp_count >= 1024*1024*200)
+											
+						if (tmp_count >= request_.content_length)
 						{
 							//200M for test is enough                         
-							print_info(request_.client_id, request_.method, request_.obj_id, "200M works ! This process finished successfully!");
+							print_info(request_.client_id, request_.method, request_.obj_id, "It works ! This process finished successfully!");
 							break;
 						}
 					}
 
+					cout << "Reception of data or parity block done!" << endl;
+
 					output_for_trans.close();
 					delete []for_recv;
+					handle_write(err_code);
+				}
+				catch (exception& e)
+				{
+					print_info(request_.client_id, request_.method, request_.obj_id, e.what());
+				} 
+			}
+			else if (request_.method == "POST")
+			{
+				request_handler_.handle_post_request(request_, reply_);
+				boost::system::error_code err_code;
+				boost::asio::write(socket_, reply_.simple_ready_buffers(), err_code);
+				// 				boost::asio::async_write(socket_, reply_.to_buffers(),
+				// 					boost::bind(&connection::handle_write, shared_from_this(), 
+				// 					boost::asio::placeholders::error));
+				//After a faked response , prepare the socket for the transmition from the client
+				boost::asio::socket_base::receive_buffer_size option(RECEIVE_BUFFER_SIZE);
+				socket_.set_option(option);
 
+				try
+				{
+					int forcin = 0;
+					ofstream output_for_trans((request_.obj_id).c_str(), ios::app | ios::binary);
 
+					char* for_recv = new char[RECEIVE_BUFFER_SIZE];
+					char* for_recv_tiny = new char[32];
+					int per_receive = 0;
+					int tmp_count = 0;
+
+					for(;;)
+					{
+						per_receive = recv(socket_.native_handle(), for_recv, RECEIVE_BUFFER_SIZE, 0);						
+						if (per_receive <= 0)
+						{
+/*							print_info(request_.client_id, request_.method, request_.obj_id, "This time got nothing and stop!");*/
+
+							//处理刚好上一次读取完了所有的内容的情况
+							//若tmp_count还为0，那么就是出现了异常
+							if (tmp_count > 0)
+							{
+								print_info(request_.client_id, request_.method, request_.obj_id, "This process finished successfully!");
+							}
+							break;
+						}
+						tmp_count += per_receive;
+
+						output_for_trans.write(for_recv, per_receive);
+						output_for_trans.flush();
+					}
+
+					output_for_trans.close();
+					delete []for_recv;
+					//ec_io_service.run();
 					/******************************************************
 					              Endoing process activated
 					*******************************************************/
-                    int ec_done = encoder_.encode_file(ec_io_service, ec_socket, request_, server_id);
+                    cout << "Now server : " << server_id << " begins to do the erasure coding part !" << endl;
+					int ec_done = encoder_.encode_file(ec_io_service, ec_socket, request_, server_id);
 
+					cout << "Now behind the function of encode_file !" << endl;
 					// Not sure if it's the right place !!!!!!!!!!!!!!
-					ec_io_service.run();
+					
 					// Not sure if it's the right place !!!!!!!!!!!!!!
+					after_ec = 1;
 					//Just for the close of connection
 					handle_write(err_code);
-
 				}
 				catch (exception& e)
 				{
@@ -195,6 +242,20 @@ void connection::handle_write(const boost::system::error_code& e)
 	file_.close();
 	socket_.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ignored_ec);
 	socket_.close();
-	
+
+	//Release those erasure-coded sockets as well
+	if (after_ec == 1)
+	{
+		for (int i = 0; i < ec_socket.size(); i++)
+		{
+			ec_socket.at(i)->shutdown(boost::asio::ip::tcp::socket::shutdown_both, ignored_ec);
+			ec_socket.at(i)->close();
+		}
+
+		after_ec = 0;
+	}
+
+	cout << "At the end of this server's handle_write !" << endl;
+	//Reset the overall status to busy
 	busy = 0;
 }

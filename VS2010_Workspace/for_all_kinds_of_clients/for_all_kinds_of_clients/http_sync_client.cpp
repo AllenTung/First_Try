@@ -111,13 +111,13 @@ int main()
 	{
 		if (thread_id%2 == 0)
 		{
-			boost::shared_ptr<boost::thread> thread(new boost::thread(boost::bind(&client::launch_client, clients[thread_id], GET_REQUEST, thread_id)));	
+			boost::shared_ptr<boost::thread> thread(new boost::thread(boost::bind(&client::launch_client, clients[thread_id], POST_REQUEST, thread_id)));	
 			thread_pool.push_back(thread);
 		}
 
 		else 
 		{
-			boost::shared_ptr<boost::thread> thread(new boost::thread(boost::bind(&client::launch_client, clients[thread_id], POST_REQUEST, thread_id)));
+			boost::shared_ptr<boost::thread> thread(new boost::thread(boost::bind(&client::launch_client, clients[thread_id], GET_REQUEST, thread_id)));
 			thread_pool.push_back(thread);
 		}	
 	}
@@ -142,7 +142,5 @@ int main()
 	}
 
 	cin >> forcin;
-	cout << "just for a sign of updated!" << endl;
-
 	return 0;
 }

@@ -26,6 +26,7 @@ class server : private boost::noncopyable
 {
 public:
 
+	//Server_id could be treated and used as its own port
 	int server_id;
 	/// The io_service used to perform asynchronous operations.
 	io_service_pool io_pool;

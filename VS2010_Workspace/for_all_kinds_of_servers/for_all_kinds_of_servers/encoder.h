@@ -39,6 +39,10 @@ public:
 	int readins;
 	int n;		//for control
 
+
+	//To indicate the size of each cahr in the experimental text.
+	int unit_size;
+
 	int ack_received;
 	string encode_tech;
 	
@@ -50,6 +54,7 @@ public:
 	void make_transmit_block_request(request ori_request);
 	void make_transmit_data_request(request ori_request);
 
+	void gather_ack(const boost::system::error_code& e);
 	void handle_write(const boost::system::error_code& e);
 };
 

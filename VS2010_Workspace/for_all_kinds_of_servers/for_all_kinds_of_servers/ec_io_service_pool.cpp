@@ -8,7 +8,7 @@
 using namespace std;
 
 ec_io_service_pool::ec_io_service_pool(int pool_size)
-	:next_ec_io_service(0)
+	:next_ec_io_service(5)
 {
 	for(int i = 0; i < pool_size; i++)
 	{
@@ -45,13 +45,20 @@ void ec_io_service_pool::stop()
 
 boost::asio::io_service& ec_io_service_pool::get_ec_io_service()
 {
+// 	if (next_ec_io_service == -1)
+// 	{
+// 		next_ec_io_service = ec_io_services.size() - 1;
+// 	}
+// 	boost::asio::io_service& tmp_io = *ec_io_services[next_ec_io_service];
+// 	next_ec_io_service--;
+// 	return tmp_io;
 	next_ec_io_service++;
 	if (next_ec_io_service == ec_io_services.size())
 	{
 		next_ec_io_service = 0;
 	}
-
 	boost::asio::io_service& tmp_io = *ec_io_services[next_ec_io_service];
+
 	return tmp_io;
 }
 

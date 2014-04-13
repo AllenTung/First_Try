@@ -36,6 +36,7 @@ public:
 	//Indication of the busy-or-free status, 0 for free and 1 for busy
 	int busy;
 
+	int after_ec;
 	//Client-side connection
 	tcp::socket socket_;
 
