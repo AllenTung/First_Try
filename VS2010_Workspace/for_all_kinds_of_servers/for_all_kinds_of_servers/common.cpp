@@ -3,6 +3,9 @@
 #include "common.hpp"
 
 using namespace std;
+using std::ofstream;
+using std::ifstream;
+
 vector<string> split(string& str,const char* c)
 {
 	char *cstr, *p;
@@ -18,10 +21,11 @@ vector<string> split(string& str,const char* c)
 	return res;
 }
 
-string int_to_string(int tmp_int)
+string int_to_string(unsigned int tmp_int)
 {
 	char tmp_char[30] = "";
-	_itoa_s(tmp_int, tmp_char, 10);
+	_ultoa_s(tmp_int, tmp_char, 10);
+	/*	_itoa_s(tmp_int, tmp_char, 10);*/
 	return tmp_char;
 }
 
@@ -99,5 +103,22 @@ int newer_timestamp_comparison(string t1, string t2)
 	
 	//All the same ,return 0
 	return 0;
-	
+}
+
+int update_file(string file_path, string content, unsigned int offset)
+{
+	ofstream random_writer(file_path.c_str(), ios::in | ios::out | ios::binary);
+
+	if (!random_writer.is_open())
+	{
+		cout << "Error occurs when open the file: " << file_path << endl;
+		return 0;
+	}
+	long cur_position = random_writer.tellp();
+	random_writer.seekp(cur_position + offset);
+	random_writer.write(content.c_str(), content.length());
+
+	random_writer.close();
+
+	return 1;
 }

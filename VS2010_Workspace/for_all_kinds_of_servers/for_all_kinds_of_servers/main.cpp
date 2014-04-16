@@ -22,8 +22,9 @@ int main()
 
 
 #pragma region test_zone
-
-// 	string temp_string_test = "fuck";
+//  	string temp_string_test = "fuck";
+// 	cout << temp_string_test.length() << endl;
+// 	cin >> forcin;
 // 	string temp2= "me";
 // 	temp_string_test += temp2 + " please";
 // 	cout << temp_string_test;
@@ -34,12 +35,13 @@ int main()
 // 	string file_path = "I:/test_random.txt";
 // 	ofstream random_writer(file_path.c_str(), ios::in | ios::out | ios::binary);
 // 	long cur_position = random_writer.tellp();
-// 	random_writer.seekp(cur_position + 8);
+// 	random_writer.seekp(cur_position + 24);
 // 	string content_string = "skeptical";
 // 	random_writer.write(content_string.c_str(), content_string.length());
 // 
 // 	random_writer.close();
-	 
+
+//	cin >> forcin;
 
 // 	SYSTEMTIME sys_time;
 // 	GetLocalTime(&sys_time);

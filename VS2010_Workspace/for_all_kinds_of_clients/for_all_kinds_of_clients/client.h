@@ -19,7 +19,10 @@ typedef boost::shared_ptr<boost::asio::io_service::work> work_ptr;
 class client
 {
 public:
-	tcp::socket client_socket;
+	//Use different socket to handle different linking in 
+	tcp::socket client_proxy_socket;
+	tcp::socket client_storage_server_socket;
+	
 	random_access_handle file_handler;
 /*	tcp::resolver client_resolver;*/
 
@@ -34,7 +37,7 @@ public:
 	void launch_client(int request_type, int thread_id);
 	void launch_get_request(int thread_id);
 	void launch_post_request(int thread_id);
-
+	void launch_update_request(int thread_id);
 	void handle_write(string uri, const boost::system::error_code& e);
 };
 

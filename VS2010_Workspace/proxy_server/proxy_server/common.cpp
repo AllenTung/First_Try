@@ -28,11 +28,11 @@ unsigned int get_hash_value(char* obj_id)
 	}       
 	return(hash % NUMBER_OF_SERVER);   
 } 
-
-string int_to_string(int tmp_int)
+string int_to_string(unsigned int tmp_int)
 {
 	char tmp_char[30] = "";
-	_itoa_s(tmp_int, tmp_char, 10);
+	_ultoa_s(tmp_int, tmp_char, 10);
+	/*	_itoa_s(tmp_int, tmp_char, 10);*/
 	return tmp_char;
 }
 

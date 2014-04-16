@@ -64,8 +64,13 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 			//这里要分开处理，分别添加handle_get_request，即原来的handle_get_request，
 			//然后要有handle_post_request，用来处理用户发来的POST请求也就是上传文件
 			//然后要有handle_update_request, 用来处理用户发来的update请求也就是从指定的offset开始写入部分内容
+
+#pragma region get_request
+
 			if (request_.method == "GET")
 			{
+				//暂时一收到get请求就发送文件过去
+
 				boost::system::error_code ec;
 				file_.assign(::CreateFile((request_.obj_id).c_str(), GENERIC_READ, FILE_SHARE_READ, 0,
 					OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, 0), ec);
@@ -82,10 +87,55 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 					return;
 				}
 			}
+#pragma endregion get_request
+#pragma region update_request
+
 			else if (request_.method == "UPDATE")
 			{
+				//request_handler_.handle_post_request(request_, reply_);
+				boost::system::error_code err_code;
+
+				reply_.server_status = "ready_for_update";
+				boost::asio::write(socket_, reply_.simple_ready_buffers(), err_code);
+
+				boost::asio::socket_base::receive_buffer_size option(RECEIVE_BUFFER_SIZE);
+				socket_.set_option(option);
+
+				//Updated content is all that the strembuf contains
+				boost::asio::streambuf update_buf;
+				boost::asio::read_until(socket_, update_buf, "\r\n");
+				istream update_stream(&update_buf);
+				string update_content;
+				update_stream >> update_content;
+
+				try
+				{
+					int done = update_file(request_.obj_id, update_content, request_.update_offset);
+					ofstream output_for_trans((request_.obj_id).c_str(), ios::app | ios::binary);
+
+					if (done == 1)
+					{
+						//Just for the close of connection
+						boost::system::error_code err_code_done;
+						reply_.server_status = "update_done";
+						boost::asio::write(socket_, reply_.simple_ready_buffers(), err_code_done);
+						handle_write(err_code);
+					}
+					else 
+					{
+						cout << "Error occurs when update the file : " << request_.obj_id << endl;
+					}
+
+				}
+				catch (exception& e)
+				{
+					print_info(request_.client_id, request_.method, request_.obj_id, e.what());
+				} 
 
 			}
+#pragma endregion update_request
+#pragma region transmit_request
+
 			else if (request_.method == "TRANSMIT_DATA_BLOCK" || request_.method == "TRANSMIT_PARITY_BLOCK")
 			{
 				//Here's the handle process of receiving the data block or parity block
@@ -94,6 +144,8 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 				cout << "In handle transmit data block : Dealing with the block with size of : " << request_.content_length << "B ***" << endl;
 
 				request_handler_.handle_transmit_block_request(request_, reply_);
+				
+				reply_.server_status = "ready_for_post";
 				boost::system::error_code err_code;
 				boost::asio::write(socket_, reply_.simple_ready_buffers(), err_code);
 				boost::asio::socket_base::receive_buffer_size option(RECEIVE_BUFFER_SIZE);
@@ -151,10 +203,14 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 					print_info(request_.client_id, request_.method, request_.obj_id, e.what());
 				} 
 			}
+#pragma endregion transmit_request
+#pragma region post_request
 			else if (request_.method == "POST")
 			{
 				request_handler_.handle_post_request(request_, reply_);
 				boost::system::error_code err_code;
+
+				reply_.server_status = "ready_for_post";
 				boost::asio::write(socket_, reply_.simple_ready_buffers(), err_code);
 				// 				boost::asio::async_write(socket_, reply_.to_buffers(),
 				// 					boost::bind(&connection::handle_write, shared_from_this(), 
@@ -202,13 +258,13 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 					*******************************************************/
                     cout << "Now server : " << server_id << " begins to do the erasure coding part !" << endl;
 					int ec_done = encoder_.encode_file(ec_io_service, ec_socket, request_, server_id);
-
-					cout << "Now behind the function of encode_file !" << endl;
-					// Not sure if it's the right place !!!!!!!!!!!!!!
-					
-					// Not sure if it's the right place !!!!!!!!!!!!!!
 					after_ec = 1;
+					cout << "Now behind the function of encode_file !" << endl;
+					
 					//Just for the close of connection
+					boost::system::error_code err_code_done;
+					reply_.server_status = "post_done";
+					boost::asio::write(socket_, reply_.simple_ready_buffers(), err_code_done);
 					handle_write(err_code);
 				}
 				catch (exception& e)
@@ -216,6 +272,7 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 					print_info(request_.client_id, request_.method, request_.obj_id, e.what());
 				} 
 			}
+#pragma endregion post_request
 		}
 	}
 

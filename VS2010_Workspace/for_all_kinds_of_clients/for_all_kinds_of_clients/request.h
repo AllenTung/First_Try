@@ -32,14 +32,23 @@ public:
 	string request_timestamp;		//Using string to assemble the timestamp in the format as :"month_day_hour_min_second_millisecond"
 	string content;		//Used for update request and the content part contains the exact binary stuff 
 
-	unsigned long content_length;
+	unsigned int content_length;
+	unsigned int update_offset;
 	vector<header> headers;
 
 	//Header plus content converted to vectors of boost buffer 
 	//in order to apply with the socket forms
 
 	request();
-	vector<boost::asio::const_buffer> to_buffers();
+
+	//all to buffers is mainly for update request
+	vector<boost::asio::const_buffer> all_to_buffers();
+	//header to buffer is for the regular reqeusts
+	vector<boost::asio::const_buffer> header_to_buffers();
+	//temporary solution for the content only
+	vector<boost::asio::const_buffer> content_to_buffers();
+
 	void make_get_request(string file_string, int client_id);
 	void make_post_request(string local_path, string file_string, int client_id, int ser_id);
+	void make_update_request(string local_path, string obj_id, int client_id, string update_content);
 };

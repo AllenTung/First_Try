@@ -30,8 +30,13 @@ using boost::asio::windows::random_access_handle;
 #define REMOTE_ADDRESS "127.0.0.1:3333"
 
 string get_random_file_name(int thread_id);
-string int_to_string(int tmp_int);
+string int_to_string(unsigned int tmp_int);
 void print_info(string client_id, string method, string uri, string detail);
+
+unsigned int get_random_offset(unsigned int content_length);
+
+string get_random_update_content();
+
 string get_systime_string();
 template <typename Handler>
 void transmit_file(tcp::socket& socket, random_access_handle& file, Handler handler)

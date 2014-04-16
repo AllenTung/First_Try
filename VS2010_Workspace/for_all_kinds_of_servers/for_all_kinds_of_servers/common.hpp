@@ -13,6 +13,7 @@
 #include <time.h>
 #include <boost/random.hpp>
 #include <Windows.h>
+#include <fstream>
 
 #if defined(BOOST_ASIO_HAS_WINDOWS_OVERLAPPED_PTR)
 
@@ -69,7 +70,9 @@ long my_random_long();
 
 int newer_timestamp_comparison(string t1, string t2);
 
-string int_to_string(int tmp_int);
+string int_to_string(unsigned int tmp_int);
+
+int update_file(string file_path, string content, unsigned int offset);
 
 template <typename Handler>
 void transmit_file(tcp::socket& socket, random_access_handle& file, Handler handler)

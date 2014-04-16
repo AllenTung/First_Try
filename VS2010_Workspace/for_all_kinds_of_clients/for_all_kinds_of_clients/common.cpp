@@ -19,10 +19,11 @@ string get_random_file_name(int thread_id)
 	}	
 }
 
-string int_to_string(int tmp_int)
+string int_to_string(unsigned int tmp_int)
 {
 	char tmp_char[30] = "";
-	_itoa_s(tmp_int, tmp_char, 10);
+	_ultoa_s(tmp_int, tmp_char, 10);
+/*	_itoa_s(tmp_int, tmp_char, 10);*/
 	return tmp_char;
 }
 
@@ -49,4 +50,26 @@ string get_systime_string()
 	
 	return temp_string;
 	
+}
+
+unsigned int get_random_offset(unsigned int content_length)
+{
+	srand((unsigned)time(NULL));
+	return rand()% content_length;
+}
+
+string get_random_update_content()
+{
+
+	int content_count = 20;
+
+	vector<string> update_content_warehouse;
+	for(int i = 0; i < content_count; i++)
+	{
+		string temp_content  = "update_content_" + int_to_string(i) + "_end";
+		update_content_warehouse.push_back(temp_content);		
+	}
+
+	return update_content_warehouse.at(get_random_offset(content_count));
+
 }

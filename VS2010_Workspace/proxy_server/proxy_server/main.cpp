@@ -10,6 +10,7 @@
 #include <boost/shared_ptr.hpp>
 #include <string>
 #include <time.h>
+#include <limits.h>
 #include "proxy_server.hpp"
 #include "common.hpp"
 #include <Windows.h>
@@ -20,8 +21,25 @@ int main()
 {
 	int forcin = 0, argc = 4;
 
-
+// 
 // #pragma region test_zone
+// 	char* temp_int = "2222";
+// 	unsigned int result1 = strtoul(temp_int, NULL, 0);
+// 	cout << result1 << endl;
+// 	unsigned int result2 = strtoul(temp_int, NULL, 10);
+// 	cout << result2 << endl;
+// 	cin >> forcin;
+// 	cout << "sizeof(unsigned int):" << sizeof(unsigned int) << endl;
+// 	cout << "sizeof(int):" << sizeof(int) << endl;
+// 	cout << "long_max:" << LONG_MAX << endl;
+// 	cout << "ulong_max:" << ULONG_MAX << endl;
+// 	cout << "long_min:" << LONG_MIN << endl;
+// 	cout << "int_max:" << INT_MAX << endl;
+// 	cout << "uint_max:" << UINT_MAX << endl;
+// 	cout << "int_min:" << INT_MIN << endl;
+// 
+// 	cin >> forcin;
+// 
 // 
 // 	int r1=0,r2=0,r3=0,r4=0;
 // 	string temp_hash1 = "client_1.txt";

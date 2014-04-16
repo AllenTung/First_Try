@@ -72,7 +72,7 @@ long my_random_long();
 
 int newer_timestamp_comparison(string t1, string t2);
 
-string int_to_string(int tmp_int);
+string int_to_string(unsigned int tmp_int);
 
 unsigned int get_hash_value(char*str);   
 

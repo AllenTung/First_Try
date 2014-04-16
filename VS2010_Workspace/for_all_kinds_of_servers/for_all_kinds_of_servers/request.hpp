@@ -34,7 +34,8 @@ public:
 
 	string client_id;
 	string server_status;	//Enumeration of server status: unavailable, ready_for_post, post_done ...  
-	unsigned long content_length;
+	unsigned int content_length;
+	unsigned int update_offset;
 	string request_timestamp;		//Using string to assemble the timestamp in the format as :"month_day_hour_min_second_millisecond"
 	string content;		//Used for update request and the content part contains the exact binary stuff 
 

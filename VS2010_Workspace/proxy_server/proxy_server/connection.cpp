@@ -57,7 +57,8 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 			{
 				try
 				{
-					reply_.server_id = target_server_location(request_.obj_id);
+					//reply_.server_id = target_server_location(request_.obj_id);
+					reply_.server_id = 888;
 					boost::system::error_code err_code;
 					boost::asio::write(socket_, reply_.simple_location_buffers(), err_code);
 					handle_write(err_code);
@@ -83,14 +84,24 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 			}
 			else if (request_.method == "UPDATE")
 			{
-
+				try
+				{
+					//reply_.server_id = target_server_location(request_.obj_id) + request_.update_offset / (request_.content_length / ERASURE_CODE_K) + 1;
+					reply_.server_id = 888;
+					boost::system::error_code err_code;
+					boost::asio::write(socket_, reply_.simple_location_buffers(), err_code);
+					handle_write(err_code);
+				}
+				catch (exception& e)
+				{
+					print_info(request_.client_id, request_.method, request_.obj_id, e.what());
+				} 
 			}
 		}
 	}
 	else 
 	{       
 		cout << e.message() << endl;
-
 	}
 }
 

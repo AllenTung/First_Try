@@ -49,7 +49,7 @@ int decoder::decode_file(string obj_id)
 
 	/* Error checking parameters */
 	curdir = (char *)malloc(sizeof(char)*100);
-	getcwd(curdir, 100);
+	_getcwd(curdir, 100);
 	
 	/* Begin recreation of file names */
 	cs1 = (char*)malloc(sizeof(char)*strlen(source_path));

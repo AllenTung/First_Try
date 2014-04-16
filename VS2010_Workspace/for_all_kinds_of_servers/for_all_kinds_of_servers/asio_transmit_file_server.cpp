@@ -164,7 +164,6 @@ int main()
 		}
 
 		boost::asio::io_service io_service;
-
 		using namespace std; // For atoi.
 		server s(io_service, argv[3], argv[1], argv[2]);
 

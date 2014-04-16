@@ -12,15 +12,16 @@ class reply
 {
 public:
 	int server_id;
-	string server_status;	//Enumeration of server status: unavailable, ready_for_post, post_done ...  
-	unsigned long content_length;
+	string server_status;	//Enumeration of server status: unavailable, ready_for_post, ready_for_update, post_done, update_done...  
+	unsigned int content_length;
 	
 	vector<header> headers;
 	string content;
 	
+	//used to construct a full reply containing all needed headers
 	vector<boost::asio::const_buffer> to_buffers();
 
-	//Used to construct a simple reply indicating the server is ready , for post especially
+	//Used to construct a simple reply containing all the simple server status, no additional headers needed
 	vector<boost::asio::const_buffer> simple_ready_buffers();
 };
 #endif // HTTP_REPLY_HPP

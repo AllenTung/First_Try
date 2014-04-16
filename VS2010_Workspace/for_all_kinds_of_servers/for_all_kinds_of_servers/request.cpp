@@ -12,7 +12,7 @@ namespace misc_strings
 	const char crlf[] = { '\r', '\n' };
 } 
 
-request::request():client_id("-1"), method(""), server_id(88), request_timestamp(""), content(""), content_length(0)
+request::request():client_id("-1"), method(""), server_id(88), request_timestamp(""), content(""), content_length(0), update_offset(0)
 {
 
 }
@@ -23,6 +23,7 @@ request:: request(request& req)
 	request_timestamp = req.request_timestamp;
 	obj_id = req.obj_id;
 	content_length = req.content_length;
+	update_offset = req.update_offset;
 }
 /*****************************************************/
 	/*             Format of request            
@@ -31,6 +32,7 @@ request:: request(request& req)
 	server_id:118\r\n
 	obj_id:read_me.txt\r\n
 	content_length:32264\r\n
+	update_offset:33333\r\n
 	request_timestamp:month_day_hour_min_second_millisecond\r\n
 	\r\n
 	(Content).....
@@ -42,7 +44,7 @@ vector<boost::asio::const_buffer> request::to_buffers()
 	vector<boost::asio::const_buffer> buffers;
 
 	//生成POST请求的必须的Header Lines
-	headers.resize(7);
+	headers.resize(8);
 	headers[0].name = "client_id:";
 	headers[0].value = client_id;
 	headers[1].name = "method:";
@@ -53,12 +55,15 @@ vector<boost::asio::const_buffer> request::to_buffers()
 	headers[3].value = obj_id;
 
 	headers[4].name = "content_length:";
-	headers[4].value = int_to_string((int)content_length);
+	headers[4].value = int_to_string(content_length);
 
-	headers[5].name = "request_timestamp:";
-	headers[5].value = request_timestamp;
-	headers[6].name = "content:";
-	headers[6].value = content;
+	headers[5].name = "update_offset:";
+	headers[5].value = int_to_string(update_offset);
+
+	headers[6].name = "request_timestamp:";
+	headers[6].value = request_timestamp;
+	headers[7].name = "content:";
+	headers[7].value = content;
 
 	for (size_t i = 0; i < headers.size(); i++)
 	{

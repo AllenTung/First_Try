@@ -13,7 +13,7 @@ class reply
 public:
 	int server_id;
 	string server_status;	//Enumeration of server status: unavailable, ready_for_post, post_done ...  
-	unsigned long content_length;
+	unsigned int content_length;
 	
 	vector<header> headers;
 	string content;

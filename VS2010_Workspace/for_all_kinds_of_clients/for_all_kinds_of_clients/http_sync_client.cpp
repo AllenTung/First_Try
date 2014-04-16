@@ -109,17 +109,22 @@ int main()
 	//Launch the request method of client
  	for (int thread_id = 0; thread_id < client_pool; thread_id ++)
 	{
-		if (thread_id%2 == 0)
+		if (thread_id%3 == 0)
 		{
-			boost::shared_ptr<boost::thread> thread(new boost::thread(boost::bind(&client::launch_client, clients[thread_id], POST_REQUEST, thread_id)));	
+			boost::shared_ptr<boost::thread> thread(new boost::thread(boost::bind(&client::launch_client, clients[thread_id], UPDATE_REQUEST, thread_id)));	
 			thread_pool.push_back(thread);
 		}
 
-		else 
+		else if (thread_id%3 == 1)
 		{
-			boost::shared_ptr<boost::thread> thread(new boost::thread(boost::bind(&client::launch_client, clients[thread_id], GET_REQUEST, thread_id)));
+			boost::shared_ptr<boost::thread> thread(new boost::thread(boost::bind(&client::launch_client, clients[thread_id], UPDATE_REQUEST, thread_id)));
 			thread_pool.push_back(thread);
 		}	
+		else if (thread_id%3 == 2)
+		{
+			boost::shared_ptr<boost::thread> thread(new boost::thread(boost::bind(&client::launch_client, clients[thread_id], UPDATE_REQUEST, thread_id)));
+			thread_pool.push_back(thread);
+		}
 	}
 
 	//Run all the io_services
