@@ -102,6 +102,8 @@ void client::launch_get_request(int thread_id)
 			output_for_trans.flush();
 		}
 
+		cout << "Receive finished !" << endl;
+
 		//Release all related sources
 		output_for_trans.close();
 		delete []for_recv;
@@ -227,7 +229,7 @@ void client::launch_post_request(int thread_id)
 	remote_path += ".txt";
 
 	request req;
-	req.make_post_request(local_path, remote_path, client_id, 99);
+	req.make_post_request(local_path, remote_path, client_id, target_port);
 	try
 	{
 #pragma region proxy_phase
@@ -300,6 +302,8 @@ void client::launch_post_request(int thread_id)
 			client_storage_server_socket.close();
 		}
 
+		cout << "After the tramsmit and wait for the ack !" << endl;
+
 
 		//Wait for ACK and then close the socket and end this journey
 		boost::asio::streambuf response_ack;
@@ -309,6 +313,7 @@ void client::launch_post_request(int thread_id)
 		ack_stream >> ack_string;
 		if (ack_string.find("post_done") < NO_SUCH_SUBSTRING)
 		{
+			cout << "Confirmed that the server has done its job !!!! post done !!!" << endl;
 			boost::system::error_code ignored_ec;
 			client_storage_server_socket.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ignored_ec);
 			client_storage_server_socket.close();
@@ -355,5 +360,11 @@ void client::handle_write(string uri, const boost::system::error_code& e)
 	{
 		print_info(int_to_string(client_id), "POST", uri, "In handle_write and no error_code!");
 	}
+// 	boost::system::error_code ignored_ec;
+// 	client_storage_server_socket.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ignored_ec);
+// 	client_storage_server_socket.close();
+
+	cout << "HANDLE WRITE DONE !!!!!!!!!" << endl;
+
 }
 

@@ -12,16 +12,25 @@
 #include "common.hpp"
 #include "encoder.h"
 #include "decoder.h"
+#include "metadata.h"
 #include <Windows.h>
 
 using namespace std;
+
+//Initialization
+map<string, metadata> server::obj_meta_table = map<string, metadata>();
+
 
 int main()
 {
 	int forcin = 0, argc = 4;
 
-
 #pragma region test_zone
+// 	string temp_fuck = "fuck";
+// 	string temp2 = "fuck";
+// 	if (temp_fuck == temp2)
+// 		cout << "fuck" << endl;
+// 	cin >> forcin;
 //  	string temp_string_test = "fuck";
 // 	cout << temp_string_test.length() << endl;
 // 	cin >> forcin;
@@ -86,12 +95,14 @@ int main()
 // 
 // 	cin >> forcin;
 #pragma endregion test_zone
+
 #pragma region config_init
 	char* cur_dir = (char*)malloc(sizeof(char)*100);	
 	_getcwd(cur_dir, 1000);
 
 	string config_file = "\\conf.txt";
 	char* config_path = strcat(cur_dir, config_file.c_str());
+	cout << config_path << endl;
 
 	FILE* fp = fopen(config_path, "rb");
 	int lSize;
@@ -109,7 +120,7 @@ int main()
 	string config_content(buffer);
 
 	fclose (fp);
-	free (buffer);	
+	free (buffer);
 #pragma endregion config_init
 
 	int thread_num = -1;
@@ -118,21 +129,26 @@ int main()
 	string port = "";
 	string doc_root ="";
 	
-	if (config_content.find("server_id:") < NO_SUCH_SUBSTRING) {
+	if (config_content.find("server_id:") < NO_SUCH_SUBSTRING)
+	{
 		string temp_server_id = config_content.substr(config_content.find("server_id:") + 10, config_content.find_first_of("\r\n", config_content.find("server_id:")) - config_content.find("server_id") - 10);
 		server_id = atoi(temp_server_id.c_str());
 	}
-	if (config_content.find("thread_num:") < NO_SUCH_SUBSTRING) {
+	if (config_content.find("thread_num:") < NO_SUCH_SUBSTRING)
+	{
 		string temp_num = config_content.substr(config_content.find("thread_num:") + 11, config_content.find_first_of("\r\n", config_content.find("thread_num:")) - config_content.find("thread_num:") - 11);
 		thread_num = atoi(temp_num.c_str());
 	}
-	if (config_content.find("ip:") < NO_SUCH_SUBSTRING) {
+	if (config_content.find("ip:") < NO_SUCH_SUBSTRING) 
+	{
 		ip = config_content.substr(config_content.find("ip:") + 3, config_content.find_first_of("\r\n", config_content.find("ip:")) - config_content.find("ip:") - 3);
 	}
-	if (config_content.find("port:") < NO_SUCH_SUBSTRING) {
+	if (config_content.find("port:") < NO_SUCH_SUBSTRING) 
+	{
 		port = config_content.substr(config_content.find("port:") + 5, config_content.find_first_of("\r\n", config_content.find("port:")) - config_content.find("port:") - 5);
 	}
-	if (config_content.find("doc_root:") < NO_SUCH_SUBSTRING) {
+	if (config_content.find("doc_root:") < NO_SUCH_SUBSTRING)
+	{
 		doc_root = config_content.substr(config_content.find("doc_root:") + 9, config_content.find_first_of("\r\n", config_content.find("doc_root:")) - config_content.find("doc_root:") - 9);
 	}
 

@@ -38,6 +38,7 @@ public:
 	unsigned int update_offset;
 	string request_timestamp;		//Using string to assemble the timestamp in the format as :"month_day_hour_min_second_millisecond"
 	string content;		//Used for update request and the content part contains the exact binary stuff 
+	Data_Type data_type;
 
 	//These may be discarded
 	string request_line;

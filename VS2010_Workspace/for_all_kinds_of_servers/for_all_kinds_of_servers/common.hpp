@@ -1,3 +1,5 @@
+#ifndef COMMON_HPP
+#define COMMON_HPP
 #pragma once
 #include <stdlib.h>
 #include <stdio.h>
@@ -14,6 +16,9 @@
 #include <boost/random.hpp>
 #include <Windows.h>
 #include <fstream>
+/*#include "metadata.h"*/
+
+class metadata;
 
 #if defined(BOOST_ASIO_HAS_WINDOWS_OVERLAPPED_PTR)
 
@@ -26,10 +31,16 @@ typedef boost::shared_ptr<boost::asio::ip::tcp::socket> socket_ptr;
 
 #define talloc(type, num) (type *) malloc(sizeof(type)*(num))
 
+//Record all the metadata of all obj stored on it ,for now ,putting asside the version controller part
+/*static map<string ,metadata> meta_table;*/
+
+//Mainly occurs in the connection::start phase 
+#define END_OF_FILE_EXCEPTION "End of file"
+
 #define BUFFER_SIZE 8192
 #define THREAD_NUMBER 5
 
-#define RECEIVE_BUFFER_SIZE 8192
+#define RECEIVE_BUFFER_SIZE 36864
 #define RECEIVE_BUFFER_SIZE_TINY 256
 
 //Request Type between client and server
@@ -74,6 +85,11 @@ string int_to_string(unsigned int tmp_int);
 
 int update_file(string file_path, string content, unsigned int offset);
 
+
+//Assign different roles to different data blocks on servers
+extern enum Data_Type {full_copy, data_1, data_2, data_3, data_4, parity_1, parity_2};
+const Data_Type types[ERASURE_CODE_K + ERASURE_CODE_M + 1] = {full_copy, data_1, data_2, data_3, data_4, parity_1, parity_2};
+
 template <typename Handler>
 void transmit_file(tcp::socket& socket, random_access_handle& file, Handler handler)
 {
@@ -104,3 +120,5 @@ void transmit_file(tcp::socket& socket, random_access_handle& file, Handler hand
 #else // defined(BOOST_ASIO_HAS_WINDOWS_OVERLAPPED_PTR)
 # error Overlapped I/O not available on this platform
 #endif // defined(BOOST_ASIO_HAS_WINDOWS_OVERLAPPED_PTR)
+
+#endif

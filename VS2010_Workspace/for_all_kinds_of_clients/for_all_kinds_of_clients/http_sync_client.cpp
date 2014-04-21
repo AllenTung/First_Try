@@ -43,7 +43,7 @@ int main()
 	 int forcin = 0;
 
 #pragma region config_init
-	char* cur_dir = (char*)malloc(sizeof(char)*100);	
+	char* cur_dir = (char*)malloc(sizeof(char)*100);
 	_getcwd(cur_dir, 1000);
 
 	string config_file = "\\conf.txt";
@@ -111,20 +111,21 @@ int main()
 	{
 		if (thread_id%3 == 0)
 		{
-			boost::shared_ptr<boost::thread> thread(new boost::thread(boost::bind(&client::launch_client, clients[thread_id], UPDATE_REQUEST, thread_id)));	
+			boost::shared_ptr<boost::thread> thread(new boost::thread(boost::bind(&client::launch_client, clients[thread_id], POST_REQUEST, thread_id)));	
 			thread_pool.push_back(thread);
 		}
 
 		else if (thread_id%3 == 1)
 		{
-			boost::shared_ptr<boost::thread> thread(new boost::thread(boost::bind(&client::launch_client, clients[thread_id], UPDATE_REQUEST, thread_id)));
+			boost::shared_ptr<boost::thread> thread(new boost::thread(boost::bind(&client::launch_client, clients[thread_id], POST_REQUEST, thread_id)));
 			thread_pool.push_back(thread);
 		}	
 		else if (thread_id%3 == 2)
 		{
-			boost::shared_ptr<boost::thread> thread(new boost::thread(boost::bind(&client::launch_client, clients[thread_id], UPDATE_REQUEST, thread_id)));
+			boost::shared_ptr<boost::thread> thread(new boost::thread(boost::bind(&client::launch_client, clients[thread_id], POST_REQUEST, thread_id)));
 			thread_pool.push_back(thread);
 		}
+		//cin >> forcin;
 	}
 
 	//Run all the io_services

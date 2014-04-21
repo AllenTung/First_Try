@@ -1,5 +1,5 @@
-client_id:188
-thread_num:1
-client_pool:1
+client_id:148
+thread_num:3
+client_pool:3
 target_port:777
 

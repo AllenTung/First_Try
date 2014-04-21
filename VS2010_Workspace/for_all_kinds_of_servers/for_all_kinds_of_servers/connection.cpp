@@ -6,10 +6,12 @@
 #include <boost/bind.hpp>
 #include "connection_manager.hpp"
 #include "request_handler.hpp"
+#include "server.hpp"
 
 using namespace std;
 using boost::asio::ip::tcp;
 
+class server;
 
 connection::connection(boost::asio::io_service& io_service, request_handler& handler, int s_id)
 	:socket_(io_service),ec_io_service(ERASURE_CODE_K+ERASURE_CODE_M), request_handler_(handler),file_(io_service),encoder_(),decoder_()
@@ -24,19 +26,11 @@ connection::connection(boost::asio::io_service& io_service, request_handler& han
 	after_ec = 0;
 }
 
-// connection::connection(boost::asio::io_service& io_service, const string& filename)
-// 	: socket_(io_service), file(io_service), file_name(filename)
-// {
-// 	cout << "The connection constructor for transmit file is triggered !\n";
-// }
-
-
-//从start函数分开处理，这里为了简化就默认写成了handle_read了。
 void connection::start()
 {
 	socket_.async_read_some(boost::asio::buffer(buffer_),
-		boost::bind(&connection::handle_read, shared_from_this(),
-		boost::asio::placeholders::error,
+		boost::bind(&connection::handle_read, shared_from_this(), 
+		boost::asio::placeholders::error, 
 		boost::asio::placeholders::bytes_transferred));
 }
 
@@ -69,8 +63,18 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 
 			if (request_.method == "GET")
 			{
-				//暂时一收到get请求就发送文件过去
-
+// 				map<string, metadata>::iterator it = server::obj_meta_table.begin();
+// 				for (; it != server::obj_meta_table.end(); it++)
+// 				{
+// 					cout << it->first << endl;
+// 					cout << it->second.history_record.at(0).request_timestamp << endl << endl;
+// 				}
+// 				if (obj_meta_table.count(request_.obj_id) > 0)
+// 				{
+// 					cout << "File found !!!!!! " << endl;
+// 					cout << obj_meta_table[request_.obj_id].history_record.at(0).request_timestamp << endl;
+// 				}		
+				
 				boost::system::error_code ec;
 				file_.assign(::CreateFile((request_.obj_id).c_str(), GENERIC_READ, FILE_SHARE_READ, 0,
 					OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, 0), ec);
@@ -111,7 +115,6 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 				try
 				{
 					int done = update_file(request_.obj_id, update_content, request_.update_offset);
-					ofstream output_for_trans((request_.obj_id).c_str(), ios::app | ios::binary);
 
 					if (done == 1)
 					{
@@ -119,6 +122,9 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 						boost::system::error_code err_code_done;
 						reply_.server_status = "update_done";
 						boost::asio::write(socket_, reply_.simple_ready_buffers(), err_code_done);
+
+// 						metadata obj_meta(request_.content_length, full_copy, request_.client_id, request_.request_timestamp);
+// 						obj_meta_table.insert(make_pair(request_.obj_id, obj_meta));
 						handle_write(err_code);
 					}
 					else 
@@ -162,9 +168,9 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 					for(;;)
 					{
 						cout << "In the receiving loop !" << endl;
-						per_receive = boost::asio::read(socket_, boost::asio::buffer(for_recv, RECEIVE_BUFFER_SIZE));
+						//per_receive = boost::asio::read(socket_, boost::asio::buffer(for_recv, RECEIVE_BUFFER_SIZE));
 						//per_receive = boost::asio::read(socket_, for_recv, err_code);
-						//per_receive = recv(socket_.native_handle(), for_recv, RECEIVE_BUFFER_SIZE, 0);
+						per_receive = recv(socket_.native_handle(), for_recv, RECEIVE_BUFFER_SIZE, 0);
 						cout << "*****per_receive: " << per_receive << "B ********" << endl;
 						
 						if (per_receive <= 0)
@@ -175,9 +181,10 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 							//若tmp_count还为0，那么就是出现了异常
 							if (tmp_count > 0)
 							{
-								print_info(request_.client_id, request_.method, request_.obj_id, "This process finished successfully!");
+								cout << request_.obj_id << "::::::::Per_receive is ZERO !!! Receiving quits !!!Total amount: " << tmp_count << endl;
+								break;
 							}
-							break;
+							
 						}
 						tmp_count += per_receive;
 
@@ -185,17 +192,30 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 						output_for_trans.flush();
 											
 						if (tmp_count >= request_.content_length)
-						{
-							//200M for test is enough                         
-							print_info(request_.client_id, request_.method, request_.obj_id, "It works ! This process finished successfully!");
+						{                       
+							cout << request_.obj_id << "::::::::Total amount is equal to content-length : " << tmp_count << endl;
 							break;
 						}
 					}
 
-					cout << "Reception of data or parity block done!" << endl;
+					cout << "About to insert into the obj_meta table:" << request_.obj_id << endl;
 
 					output_for_trans.close();
 					delete []for_recv;
+
+					//Insert 
+					pair<map<string, metadata>::iterator, bool> test_pair;
+					metadata obj_meta(request_.content_length, request_.data_type, request_.client_id, request_.request_timestamp);
+					test_pair = server::obj_meta_table.insert(make_pair(request_.obj_id, obj_meta));
+
+					if(test_pair.second == true) {
+						cout << "Successfully inserted the value :" << test_pair.first->first << endl;
+					}
+					else 
+					{
+						cout << "Insertion failed!" << endl;
+					}
+
 					handle_write(err_code);
 				}
 				catch (exception& e)
@@ -207,9 +227,9 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 #pragma region post_request
 			else if (request_.method == "POST")
 			{
+
 				request_handler_.handle_post_request(request_, reply_);
 				boost::system::error_code err_code;
-
 				reply_.server_status = "ready_for_post";
 				boost::asio::write(socket_, reply_.simple_ready_buffers(), err_code);
 				// 				boost::asio::async_write(socket_, reply_.to_buffers(),
@@ -226,33 +246,50 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 
 					char* for_recv = new char[RECEIVE_BUFFER_SIZE];
 					char* for_recv_tiny = new char[32];
-					int per_receive = 0;
-					int tmp_count = 0;
+					unsigned int per_receive = 0;
+					unsigned int tmp_count = 0;
 
 					for(;;)
 					{
-						per_receive = recv(socket_.native_handle(), for_recv, RECEIVE_BUFFER_SIZE, 0);						
-						if (per_receive <= 0)
-						{
-/*							print_info(request_.client_id, request_.method, request_.obj_id, "This time got nothing and stop!");*/
+						//per_receive = boost::asio::read(socket_, boost::asio::buffer(for_recv, RECEIVE_BUFFER_SIZE));
+						per_receive = (unsigned int)recv(socket_.native_handle(), for_recv, RECEIVE_BUFFER_SIZE, 0);
 
-							//处理刚好上一次读取完了所有的内容的情况
-							//若tmp_count还为0，那么就是出现了异常
-							if (tmp_count > 0)
-							{
-								print_info(request_.client_id, request_.method, request_.obj_id, "This process finished successfully!");
-							}
-							break;
-						}
+						cout << "Per-receive :" << per_receive << " B *********** " << endl;
+
 						tmp_count += per_receive;
 
 						output_for_trans.write(for_recv, per_receive);
 						output_for_trans.flush();
+
+						if (tmp_count >= request_.content_length)
+						{
+							print_info(request_.client_id, request_.method, request_.obj_id, "This process finished successfully!");
+							break;
+						}
 					}
+
+					cout << "post finished , about to insert the record!" << endl;
+
 
 					output_for_trans.close();
 					delete []for_recv;
 					//ec_io_service.run();
+
+
+					//Insert the record
+					pair<map<string, metadata>::iterator, bool> test_pair;
+					metadata obj_meta(request_.content_length, full_copy, request_.client_id, request_.request_timestamp);
+					test_pair = server::obj_meta_table.insert(make_pair(request_.obj_id, obj_meta));
+
+					if(test_pair.second == true) {
+						cout << "Successfully inserted the value :" << test_pair.first->first<< endl;
+					}
+					else 
+					{
+						cout << "Insertion failed!" << endl;
+					}
+
+
 					/******************************************************
 					              Endoing process activated
 					*******************************************************/
@@ -261,6 +298,7 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 					after_ec = 1;
 					cout << "Now behind the function of encode_file !" << endl;
 					
+
 					//Just for the close of connection
 					boost::system::error_code err_code_done;
 					reply_.server_status = "post_done";
@@ -278,8 +316,18 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 
 	else 
 	{       
-		cout << e.message() << endl;
-
+		cout << "Not entered into the handle-read zone because of :" << e.message() << endl;
+		if (e.message().find(END_OF_FILE_EXCEPTION) < NO_SUCH_SUBSTRING)
+		{
+			boost::system::error_code err_code_done;
+			reply_.server_status = "try_again";
+			boost::asio::write(socket_, reply_.simple_ready_buffers(), err_code_done);
+			start();
+		}
+		else
+		{
+			//Do something
+		}
 	}
 }
 
@@ -287,11 +335,11 @@ void connection::handle_write(const boost::system::error_code& e)
 {
 	if (!e)
 	{
-		print_info(request_.client_id, request_.method, request_.uri, "Service ends for above circumstance!");
+		print_info(request_.client_id, request_.method, request_.obj_id, "Service ends for above circumstance!");
 	}
 	else
 	{
-		print_info(request_.client_id, request_.method, request_.uri, "In method handle_write and the error code is null");
+		print_info(request_.client_id, request_.method, request_.obj_id, "In method handle_write and the error code is null");
 	}
 
 	//Initiate graceful connection closure

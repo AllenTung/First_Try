@@ -72,7 +72,8 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 			{
 				try
 				{
-					reply_.server_id = target_server_location(request_.obj_id);
+					//reply_.server_id = target_server_location(request_.obj_id);
+					reply_.server_id = 888;
 					boost::system::error_code err_code;
 					boost::asio::write(socket_, reply_.simple_location_buffers(), err_code);
 					handle_write(err_code);

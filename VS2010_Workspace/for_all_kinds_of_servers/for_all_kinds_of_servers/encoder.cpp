@@ -52,7 +52,7 @@ int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> 
 	int m = ERASURE_CODE_M;
 	int w = ERASURE_CODE_W;
 	int packetsize = ERASURE_CODE_PACKETSIZE;		
-	int buffersize = 8388608;
+	int buffersize = 8192;
 
 
 	int i;				
@@ -322,14 +322,14 @@ int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> 
 		}
 		transmit_data_request.content_length /= k;
 		transmit_data_request.obj_id = fname;
+		transmit_data_request.data_type = types[i];
 
 		boost::asio::write(*(ec_socket.at(i - 1)), transmit_data_request.to_buffers());		
 	}
 
 	while (n <= readins) 
 	{
-/* Check if padding is needed, if so, add appropriate 
-		   number of zeros */
+		/* Check if padding is needed, if so, add appropriate number of zeros */
 
 		cout << "N:  " << n << endl;
 		cout << "Readins: " << readins << endl;
@@ -383,8 +383,52 @@ int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> 
 			if (n == 1)
 			{
 				//Consume the simple reply from other servers as ACK for the first transmit
-				boost::asio::streambuf tmp_response;
-				boost::asio::read_until(*(ec_socket.at(i)), tmp_response, "\r\n");
+				//If no ready status is perceived, then re-send the request
+				for(;;)
+				{
+					boost::asio::streambuf tmp_response;
+					boost::asio::read_until(*(ec_socket.at(i)), tmp_response, "\r\n");
+					istream update_stream(&tmp_response);
+					string response_string;
+					update_stream >> response_string;
+
+
+					if(response_string.find("ready_for_post") < NO_SUCH_SUBSTRING)
+					{
+						cout << "***************************************" << endl;
+						cout << "Server: " << server_id + i + 1 << "is totally ready !!!!!" << endl;
+						cout << "***************************************" << endl;
+						break;
+					}
+
+					else if(response_string.find("try_again") < NO_SUCH_SUBSTRING)
+					{
+						cout << "***************************************" << endl;
+						cout << "Server: " << server_id + i + 1 << "is somehow blocked !!!!!" << endl;
+						cout << "***************************************" << endl;
+
+						int forcin = 0;
+						cin >> forcin;
+
+						request transmit_data_request(ori_req);
+						if (i < k)
+						{
+							transmit_data_request.method = "TRANSMIT_DATA_BLOCK";
+							sprintf(fname, "%s\\%s_k%0*d%s", curdir, s1, md, i + 1, s2);
+						}
+						else
+						{
+							transmit_data_request.method = "TRANSMIT_PARITY_BLOCK";
+							sprintf(fname, "%s\\%s_m%0*d%s", curdir, s1, md, i - k + 1, s2);
+						}
+						transmit_data_request.content_length /= k;
+						transmit_data_request.obj_id = fname;
+						transmit_data_request.data_type = types[i + 1];
+
+						boost::asio::write(*(ec_socket.at(i)), transmit_data_request.to_buffers());	
+					}
+
+				}
 			}
 
 			cout << "********* Child Block: = " << i << " ******" << endl;
@@ -417,13 +461,18 @@ int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> 
 		fprintf(fp2, "%d %d %d %d %d %d\n", k, m, w, packetsize, buffersize, readins);
 		fclose(fp2);
 	}
+
+	fclose(fp);
+
+
 	/* Free allocated memory */
 	free(s2);
 	free(s1);
 	free(fname);
 	free(block);
 	free(curdir);
-	
+	free(coding);
+	free(source_path);
 	/* Calculate rate in MB/sec and print */
 	//gettimeofday(&t2, &tz);
 	QueryPerformanceCounter(&t2);

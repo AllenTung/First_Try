@@ -7,14 +7,39 @@ using namespace std;
 string get_random_file_name(int thread_id)
 {
 	//Current setting relates to the thread_id , just to check the concurrent read operation
-	if(thread_id%2 == 1)
+	if(thread_id%3 == 0)
 	{
-		string tmp_file = "I:/test_transmitfile.txt";
+		string tmp_file = "I:/test_transmitfile_0.txt";
 		return tmp_file;
 	}
-	else
+	else if(thread_id%3 == 1)
 	{
-		string tmp_file = "I:/test_transmitfile2.txt";
+		string tmp_file = "I:/test_transmitfile_1.txt";
+		return tmp_file;
+	}	
+	else if(thread_id%3 == 2)
+	{
+		string tmp_file = "I:/test_transmitfile_2.txt";
+		return tmp_file;
+	}	
+}
+
+string get_request_random_file_name(int thread_id)
+{
+	//Current setting relates to the thread_id , just to check the concurrent read operation
+	if(thread_id%3 == 0)
+	{
+		string tmp_file = "I:/client_post_request_0.txt";
+		return tmp_file;
+	}
+	else if(thread_id%3 == 1)
+	{
+		string tmp_file = "I:/client_post_request_1.txt";
+		return tmp_file;
+	}	
+	else if(thread_id%3 == 2)
+	{
+		string tmp_file = "I:/client_post_request_2.txt";
 		return tmp_file;
 	}	
 }

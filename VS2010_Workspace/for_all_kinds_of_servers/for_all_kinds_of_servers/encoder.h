@@ -13,6 +13,7 @@ extern "C"
 #include <stdlib.h>
 #include <stdio.h>
 #include <iostream>
+#include <fstream>
 #include <time.h>
 #include <math.h>
 #include <WinSock2.h>
@@ -22,6 +23,7 @@ extern "C"
 #include <boost/filesystem.hpp>
 #include <boost/thread/thread.hpp>
 #include <boost/shared_ptr.hpp>
+#include <boost/array.hpp>
 #include <boost/enable_shared_from_this.hpp>
 #include <signal.h>
 #include <direct.h>

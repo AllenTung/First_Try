@@ -6,6 +6,7 @@ using namespace std;
 using std::ofstream;
 using std::ifstream;
 
+
 vector<string> split(string& str,const char* c)
 {
 	char *cstr, *p;
@@ -29,17 +30,17 @@ string int_to_string(unsigned int tmp_int)
 	return tmp_char;
 }
 
-void print_info(string client_id, string method, string uri, string detail)
+void print_info(string client_id, string method, string obj_id, string detail)
 {
 	if (client_id.empty())
 		client_id = "null";
 	if (method.empty())
 		method = "null";
-	if (uri.empty())
-		uri = "null";
+	if (obj_id.empty())
+		obj_id = "null";
 	if (detail.empty())
 		detail = "null";
-	cout << "\nClient: " << client_id << "\nMethod: " << method << "\nTarget: " << uri << "\nDetail: " << detail << endl;
+	cout << "\nClient: " << client_id << "\nMethod: " << method << "\nTarget: " << obj_id << "\nDetail: " << detail << endl;
 }
 static long get_my_random_long()
 {

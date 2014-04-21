@@ -1,8 +1,12 @@
+#ifndef CONNECTION_HPP
+#define CONNECTION_HPP
+
 #pragma once
 #include <stdlib.h>
 #include <iostream>
 #include <stdio.h>
 #include <string>
+#include <map>
 #include <boost/asio.hpp>
 #include <boost/array.hpp>
 #include <boost/noncopyable.hpp>
@@ -17,6 +21,7 @@
 #include "encoder.h"
 #include "io_service_pool.hpp"
 #include "ec_io_service_pool.h"
+#include "metadata.h"
 
 /*using namespace std;*/
 #if defined(BOOST_ASIO_HAS_WINDOWS_OVERLAPPED_PTR)
@@ -24,7 +29,7 @@
 using boost::asio::ip::tcp;
 using boost::asio::windows::overlapped_ptr;
 using boost::asio::windows::random_access_handle_service;
-
+class server;
 class connection_manager;
 // Represents a single connection from a client.
 class connection: public boost::enable_shared_from_this<connection>
@@ -94,3 +99,6 @@ typedef boost::shared_ptr<connection> connection_ptr;
 #else // defined(BOOST_ASIO_HAS_WINDOWS_OVERLAPPED_PTR)
 # error Overlapped I/O not available on this platform
 #endif // defined(BOOST_ASIO_HAS_WINDOWS_OVERLAPPED_PTR)
+
+
+#endif

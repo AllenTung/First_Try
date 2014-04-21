@@ -21,8 +21,8 @@ using boost::asio::windows::random_access_handle;
 #define UPDATE_REQUEST 3
 #define POST_REQUEST_BUF_SIZE 8192
 
-#define CLIENT_POOL_SIZE 1
-#define THREAD_POOL_SIZE 1
+#define CLIENT_POOL_SIZE 3
+#define THREAD_POOL_SIZE 3
 #define NO_SUCH_SUBSTRING 1000000
 
 #define RECEIVE_BUFFER_SIZE 65536
@@ -30,6 +30,7 @@ using boost::asio::windows::random_access_handle;
 #define REMOTE_ADDRESS "127.0.0.1:3333"
 
 string get_random_file_name(int thread_id);
+string get_request_random_file_name(int thread_id);
 string int_to_string(unsigned int tmp_int);
 void print_info(string client_id, string method, string uri, string detail);
 

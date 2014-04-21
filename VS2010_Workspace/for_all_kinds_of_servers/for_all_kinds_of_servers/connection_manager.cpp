@@ -10,14 +10,14 @@ void connection_manager::start(connection_ptr c)
 	cout << "Insert a new connection_ptr and gets it start\n";
 
 	connections_.insert(c);
-	c->start();
+/*	c->start();*/
 }
 void connection_manager::stop(connection_ptr c)
 {
 	cout << "Stop a connection_ptr...\n";
 
 	connections_.erase(c);
-	c->stop();
+/*	c->stop();*/
 }
 
 void connection_manager::stop_all()

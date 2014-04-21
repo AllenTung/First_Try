@@ -7,6 +7,7 @@
 #include <string>
 #include <vector>
 #include <set>
+#include <map>
 #include <boost/asio.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/noncopyable.hpp>
@@ -17,14 +18,15 @@
 #include "request_parser.hpp"
 #include "encoder.h"
 #include "decoder.h"
-
-
+#include "metadata.h"
 using namespace std;
 
 
-class server : private boost::noncopyable
+class server/* : private boost::noncopyable*/
 {
 public:
+
+	static map<string, metadata> obj_meta_table;
 
 	//Server_id could be treated and used as its own port
 	int server_id;
@@ -55,10 +57,22 @@ public:
 	//Run the server's io_service loop
 	void run();
 	void start_accept();
-	void handle_accept(connection_ptr& current_connection, const boost::system::error_code& e);
+	void handle_accept(connection_ptr& current_connection, boost::system::error_code& e);
 	void handle_stop();
 	int choose_connection();
 	void start_handle(connection_ptr& current_connection);
+	static void server::show_table_info()
+	{
+		int table_count = 0;
+		map<string, metadata>::iterator it = server::obj_meta_table.begin();
+		for (; it != server::obj_meta_table.end(); it++)
+		{
+			table_count ++;
+		}
+		cout << "**********************************************" << endl;
+		cout << "Entry counts: " << table_count << " **********" << endl;
+		cout << "**********************************************" << endl;
+	}
 };
 
 #endif
