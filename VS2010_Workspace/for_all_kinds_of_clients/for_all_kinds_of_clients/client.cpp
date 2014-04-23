@@ -124,11 +124,10 @@ void client::launch_update_request(int thread_id)
 // 	remote_path += int_to_string(thread_id);
 // 	remote_path += ".txt";
 
-	string local_path = "I:\\test_random.txt";
-	string remote_path = "I:\\test_random.txt";
+	string local_path = update_request_random_file_name(thread_id);
 
 	request req;
-	req.make_update_request(local_path, remote_path, client_id, get_random_update_content());
+	req.make_update_request(local_path, client_id, get_random_update_content());
 	try
 	{
 #pragma region proxy_phase
@@ -168,11 +167,10 @@ void client::launch_update_request(int thread_id)
 		client_storage_server_socket.set_option(option);
 
 		cout << "After connect!" << endl;
+		print_info(int_to_string(thread_id), req.method, extract_pure_obj_name(local_path), int_to_string(req.server_id));
 
 		boost::system::error_code storage_prepare_err_code;
 		boost::asio::write(client_storage_server_socket, req.header_to_buffers(), storage_prepare_err_code);
-
-		cout << "After write !" << endl;
 
 		//Wait for the ready for update from the storage server
 		boost::asio::streambuf response_ready;
@@ -180,8 +178,6 @@ void client::launch_update_request(int thread_id)
 		istream ready_stream(&response_ready);
 		string ready_string;
 		ready_stream >> ready_string;
-
-
 
 		if (ready_string.find("ready_for_update") < NO_SUCH_SUBSTRING)
 		{
@@ -208,6 +204,8 @@ void client::launch_update_request(int thread_id)
 			boost::system::error_code ignored_ec;
 			client_storage_server_socket.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ignored_ec);
 			client_storage_server_socket.close();
+
+			print_info(int_to_string(thread_id), req.method, extract_pure_obj_name(local_path), "Update Done !!!!!");			
 		}
 		else
 		{

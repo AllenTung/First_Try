@@ -169,14 +169,14 @@ void request::make_get_request(string file_string, int tmp_client_id)
 	request_timestamp = get_systime_string();
 	
 }
-void request::make_update_request(string local_path, string file_string, int tmp_client_id, string update_content)
+void request::make_update_request(string local_path, int tmp_client_id, string update_content)
 {
 	/*有个情况需要考虑，这里可以先按这个client所感知的content length来确定这个offset
 	  而发送去proxy server之后，也是按照这样计算来，发送去对应的server，但是其实在server端
 	  如果有consistency方面的不一致的话，就是长度的改变，可以再由这个server去咨询version controller
 	  之类的，或者master node，这样就达到一个transfer iff needed 的效果 */
 	method = "UPDATE";
-	obj_id = file_string;
+	obj_id = local_path;
 	client_id = int_to_string(tmp_client_id);
 	request_timestamp = get_systime_string();
 	content = update_content;

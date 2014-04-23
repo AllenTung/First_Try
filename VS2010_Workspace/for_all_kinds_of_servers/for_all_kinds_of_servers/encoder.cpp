@@ -470,8 +470,8 @@ int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> 
 	free(fname);
 	free(block);
 	free(curdir);
-	free(coding);
-	free(source_path);
+// 	free(coding);
+// 	free(source_path);
 	/* Calculate rate in MB/sec and print */
 	//gettimeofday(&t2, &tz);
 	QueryPerformanceCounter(&t2);

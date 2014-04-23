@@ -50,5 +50,5 @@ public:
 
 	void make_get_request(string file_string, int client_id);
 	void make_post_request(string local_path, string file_string, int client_id, int ser_id);
-	void make_update_request(string local_path, string obj_id, int client_id, string update_content);
+	void make_update_request(string local_path, int client_id, string update_content);
 };

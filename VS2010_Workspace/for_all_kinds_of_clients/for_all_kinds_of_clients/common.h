@@ -5,6 +5,7 @@
 #include <string>
 #include <ctime>
 #include <time.h>
+#include <direct.h>
 #include <boost/asio.hpp>
 #include <boost/enable_shared_from_this.hpp>
 #if defined(BOOST_ASIO_HAS_WINDOWS_OVERLAPPED_PTR)
@@ -40,7 +41,12 @@ string get_random_update_content();
 
 string update_request_random_file_name(int thread_id);
 
+string extract_pure_obj_name(string full_path);
+
+string return_full_path(string obj_name);
+
 string get_systime_string();
+
 template <typename Handler>
 void transmit_file(tcp::socket& socket, random_access_handle& file, Handler handler)
 {

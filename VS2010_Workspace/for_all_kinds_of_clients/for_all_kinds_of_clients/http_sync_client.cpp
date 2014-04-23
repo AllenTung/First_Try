@@ -42,6 +42,15 @@ int main()
 {
 	 int forcin = 0;
 
+	 for(int i = 0;i < 150; i++)
+	 {
+		 srand((unsigned)time(NULL));
+		 cout << rand() << endl;
+	 }
+	 cin >> forcin;
+
+
+
 #pragma region config_init
 	char* cur_dir = (char*)malloc(sizeof(char)*100);
 	_getcwd(cur_dir, 1000);

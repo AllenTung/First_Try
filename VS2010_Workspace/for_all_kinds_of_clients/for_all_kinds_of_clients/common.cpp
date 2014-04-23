@@ -98,7 +98,14 @@ string get_systime_string()
 unsigned int get_random_offset(unsigned int content_length)
 {
 	srand((unsigned)time(NULL));
-	return rand()% content_length;
+	unsigned int random_offset = rand()% content_length;
+ 
+	if (content_length > 100)
+	{
+		cout << "*****Random offset: " << random_offset << "**************in range: " << content_length << endl;
+	}
+
+	return random_offset;
 }
 
 string get_random_update_content()
@@ -115,4 +122,21 @@ string get_random_update_content()
 
 	return update_content_warehouse.at(get_random_offset(content_count));
 
+}
+
+string extract_pure_obj_name(string full_path)
+{
+	string obj_name = full_path.substr(full_path.find_last_of("\\") + 1);
+	return obj_name;
+}
+
+string return_full_path(string obj_name)
+{
+	char* curdir;
+	curdir = (char*)malloc(sizeof(char)*1000);	
+	_getcwd(curdir, 1000);
+	string obj_prefix(curdir);
+	string full_obj_name = obj_prefix + "\\" + obj_name;
+
+	return full_obj_name;
 }
