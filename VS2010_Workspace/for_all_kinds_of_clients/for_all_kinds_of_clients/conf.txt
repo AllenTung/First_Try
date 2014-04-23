@@ -1,5 +1,5 @@
-client_id:148
+client_id:222
 thread_num:3
 client_pool:3
 target_port:777
-
+request_type:2

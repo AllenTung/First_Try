@@ -56,7 +56,8 @@ typedef boost::shared_ptr<boost::asio::ip::tcp::socket> socket_ptr;
 #define ERASURE_CODE_BUFFERSIZE 1024
 
 //Max number of servers
-#define NUMBER_OF_SERVER 2560
+#define NUMBER_OF_SERVER 256
+#define STARTING_SERVER_ID 888
 
 //For Hashing
 #define HASHING_SEED 131

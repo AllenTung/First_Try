@@ -100,6 +100,7 @@ int main()
 	char* cur_dir = (char*)malloc(sizeof(char)*100);	
 	_getcwd(cur_dir, 1000);
 
+
 	string config_file = "\\conf.txt";
 	char* config_path = strcat(cur_dir, config_file.c_str());
 	cout << config_path << endl;

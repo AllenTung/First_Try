@@ -9,17 +9,17 @@ string get_random_file_name(int thread_id)
 	//Current setting relates to the thread_id , just to check the concurrent read operation
 	if(thread_id%3 == 0)
 	{
-		string tmp_file = "I:/test_transmitfile_0.txt";
+		string tmp_file = "I:\\test_transmitfile_0.txt";
 		return tmp_file;
 	}
 	else if(thread_id%3 == 1)
 	{
-		string tmp_file = "I:/test_transmitfile_1.txt";
+		string tmp_file = "I:\\test_transmitfile_1.txt";
 		return tmp_file;
 	}	
 	else if(thread_id%3 == 2)
 	{
-		string tmp_file = "I:/test_transmitfile_2.txt";
+		string tmp_file = "I:\\test_transmitfile_2.txt";
 		return tmp_file;
 	}	
 }
@@ -29,21 +29,39 @@ string get_request_random_file_name(int thread_id)
 	//Current setting relates to the thread_id , just to check the concurrent read operation
 	if(thread_id%3 == 0)
 	{
-		string tmp_file = "I:/client_post_request_0.txt";
+		string tmp_file = "I:\\client_post_request_0.txt";
 		return tmp_file;
 	}
 	else if(thread_id%3 == 1)
 	{
-		string tmp_file = "I:/client_post_request_1.txt";
+		string tmp_file = "I:\\client_post_request_1.txt";
 		return tmp_file;
 	}	
 	else if(thread_id%3 == 2)
 	{
-		string tmp_file = "I:/client_post_request_2.txt";
+		string tmp_file = "I:\\client_post_request_2.txt";
 		return tmp_file;
 	}	
 }
-
+string update_request_random_file_name(int thread_id)
+{
+	//Current setting relates to the thread_id , just to check the concurrent read operation
+	if(thread_id%3 == 0)
+	{
+		string tmp_file = "I:\\client_post_request_0.txt";
+		return tmp_file;
+	}
+	else if(thread_id%3 == 1)
+	{
+		string tmp_file = "I:\\client_post_request_1.txt";
+		return tmp_file;
+	}	
+	else if(thread_id%3 == 2)
+	{
+		string tmp_file = "I:\\client_post_request_2.txt";
+		return tmp_file;
+	}	
+}
 string int_to_string(unsigned int tmp_int)
 {
 	char tmp_char[30] = "";
@@ -86,7 +104,7 @@ unsigned int get_random_offset(unsigned int content_length)
 string get_random_update_content()
 {
 
-	int content_count = 20;
+	int content_count = 88;
 
 	vector<string> update_content_warehouse;
 	for(int i = 0; i < content_count; i++)

@@ -39,14 +39,13 @@ int encoder::jfread(void *ptr, int size, int nmembers, FILE *stream)
 	return size;
 }
 
-int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> ec_socket, request& ori_req, int server_id) 
+int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> ec_socket, request& ori_req, int server_id, string pure_obj_name, string full_local_path) 
 {
 	//word_size,即系将一个文件，比如一个大文本，分成了很多个word，然后每个word是多大
 	//Packetsize, 必须是word的整数倍，这个encode时的单位
 	//buffersize，在下面还要通过上下取整来调整到最佳
-	char* coding_path = "I://VS2010_Workspace//for_all_kinds_of_servers//for_all_kinds_of_servers//Coding";
 
-	char* source_path = const_cast<char*>(ori_req.obj_id.c_str());
+	char* source_path = const_cast<char*>(full_local_path.c_str());
 
 	int k = ERASURE_CODE_K;
 	int m = ERASURE_CODE_M;
@@ -158,14 +157,6 @@ int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> 
 	if (fp == NULL) 
 	{
 		fprintf(stderr,  "Unable to open file.\n");
-		exit(0);
-	}
-	
-	/* Create Coding directory */
-	i = _mkdir(coding_path);
-	if (i == -1 && errno != EEXIST) 
-	{
-		fprintf(stderr, "Unable to create Coding directory.\n");
 		exit(0);
 	}
 	
@@ -305,7 +296,13 @@ int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> 
 	{
 
 		//Connect the next targeted server and send a transmit_data request
-		int next_target_server = (server_id + i) % NUMBER_OF_SERVER;
+		int next_target_server = server_id + i;
+		// Round circle calculation
+		if (next_target_server > STARTING_SERVER_ID + NUMBER_OF_SERVER - 1)
+		{
+			next_target_server -= NUMBER_OF_SERVER;
+		}
+
 		tcp::endpoint end_p(boost::asio::ip::address_v4::from_string("127.0.0.1"), next_target_server);
 		ec_socket.at(i - 1)->connect(end_p);
 
@@ -320,8 +317,9 @@ int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> 
 			transmit_data_request.method = "TRANSMIT_PARITY_BLOCK";
 			sprintf(fname, "%s\\%s_m%0*d%s", curdir, s1, md, i - k, s2);
 		}
+		//Use the pure object name to construct the request
 		transmit_data_request.content_length /= k;
-		transmit_data_request.obj_id = fname;
+		transmit_data_request.obj_id = pure_obj_name;
 		transmit_data_request.data_type = types[i];
 
 		boost::asio::write(*(ec_socket.at(i - 1)), transmit_data_request.to_buffers());		
@@ -407,8 +405,8 @@ int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> 
 						cout << "Server: " << server_id + i + 1 << "is somehow blocked !!!!!" << endl;
 						cout << "***************************************" << endl;
 
-						int forcin = 0;
-						cin >> forcin;
+// 						int forcin = 0;
+// 						cin >> forcin;
 
 						request transmit_data_request(ori_req);
 						if (i < k)
@@ -421,8 +419,9 @@ int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> 
 							transmit_data_request.method = "TRANSMIT_PARITY_BLOCK";
 							sprintf(fname, "%s\\%s_m%0*d%s", curdir, s1, md, i - k + 1, s2);
 						}
+						//Use pure object name
 						transmit_data_request.content_length /= k;
-						transmit_data_request.obj_id = fname;
+						transmit_data_request.obj_id = pure_obj_name;
 						transmit_data_request.data_type = types[i + 1];
 
 						boost::asio::write(*(ec_socket.at(i)), transmit_data_request.to_buffers());	
@@ -452,15 +451,15 @@ int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> 
 
 	/* 这里是生成一个meta文件，记录了所有的encoding过程中所用到的信息，但是这个东西不能光存一份在master
 	   可以考虑作为缓存存在proxy server端，也可以在每个相关的server上存一份，再看*/
-	if (fp != NULL) 
-	{
-		sprintf(fname, "%s\\%s_meta.txt", curdir, s1);
-		fp2 = fopen(fname, "wb");
-		fprintf(fp2, "%s\n", source_path);
-		fprintf(fp2, "%d\n", size);
-		fprintf(fp2, "%d %d %d %d %d %d\n", k, m, w, packetsize, buffersize, readins);
-		fclose(fp2);
-	}
+// 	if (fp != NULL) 
+// 	{
+// 		sprintf(fname, "%s\\%s_meta.txt", curdir, s1);
+// 		fp2 = fopen(fname, "wb");
+// 		fprintf(fp2, "%s\n", source_path);
+// 		fprintf(fp2, "%d\n", size);
+// 		fprintf(fp2, "%d %d %d %d %d %d\n", k, m, w, packetsize, buffersize, readins);
+// 		fclose(fp2);
+// 	}
 
 	fclose(fp);
 

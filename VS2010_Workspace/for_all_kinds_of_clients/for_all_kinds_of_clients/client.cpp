@@ -74,7 +74,7 @@ void client::launch_get_request(int thread_id)
 
 		//Below waits and handles the response ,that is to say , the coming file
 		int forcin = 0;
-		string trans_test_result = "I:/client_get_result_";
+		string trans_test_result = "I:\\client_get_result_";
 		trans_test_result += int_to_string(client_id);
 		trans_test_result += ".txt";
 
@@ -124,8 +124,8 @@ void client::launch_update_request(int thread_id)
 // 	remote_path += int_to_string(thread_id);
 // 	remote_path += ".txt";
 
-	string local_path = "I:/test_random.txt";
-	string remote_path = "I:/test_random.txt";
+	string local_path = "I:\\test_random.txt";
+	string remote_path = "I:\\test_random.txt";
 
 	request req;
 	req.make_update_request(local_path, remote_path, client_id, get_random_update_content());
@@ -224,7 +224,7 @@ void client::launch_update_request(int thread_id)
 void client::launch_post_request(int thread_id)
 {
 	string local_path = get_random_file_name(thread_id);
-	string remote_path = "I:/client_post_request_";
+	string remote_path = "I:\\client_post_request_";
 	remote_path += int_to_string(thread_id);
 	remote_path += ".txt";
 
@@ -333,17 +333,17 @@ void client::launch_post_request(int thread_id)
 
 void client::launch_client(int request_type, int thread_id)
 {
-	if(request_type == POST_REQUEST)
+	if(request_type == 2)
 	{
 		launch_post_request(thread_id);
 		return;
 	}
-	else if (request_type == GET_REQUEST)
+	else if (request_type == 1)
 	{
 		launch_get_request(thread_id);
 		return;
 	}
-	else if (request_type == UPDATE_REQUEST)
+	else if (request_type == 3)
 	{
 		launch_update_request(thread_id);
 		return;

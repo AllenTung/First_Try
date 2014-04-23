@@ -68,6 +68,8 @@ public:
 		for (; it != server::obj_meta_table.end(); it++)
 		{
 			table_count ++;
+			cout << it->first << endl;
+			cout << it->second.history_record.at(0).request_timestamp << endl << endl;
 		}
 		cout << "**********************************************" << endl;
 		cout << "Entry counts: " << table_count << " **********" << endl;

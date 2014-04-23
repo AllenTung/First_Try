@@ -158,6 +158,7 @@ int main()
 	string ip ="";
 	string port = "";
 	string doc_root ="";
+	string run_mode ="";
 	
 	if (config_content.find("proxy_server_id:") < NO_SUCH_SUBSTRING)
 	{
@@ -181,8 +182,12 @@ int main()
 	{
 		doc_root = config_content.substr(config_content.find("doc_root:") + 9, config_content.find_first_of("\r\n", config_content.find("doc_root:")) - config_content.find("doc_root:") - 9);
 	}
+	if (config_content.find("run_mode:") < NO_SUCH_SUBSTRING)
+	{
+		run_mode = config_content.substr(config_content.find("run_mode:") + 9, config_content.find_first_of("\r\n", config_content.find("run_mode:")) - config_content.find("run_mode:") - 9);
+	}
 
-	proxy_server new_proxy_server(ip, port, doc_root, thread_num, proxy_server_id);	
+	proxy_server new_proxy_server(ip, port, doc_root, thread_num, proxy_server_id, run_mode);	
 	new_proxy_server.run();
 
 	return 0;

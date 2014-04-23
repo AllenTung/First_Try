@@ -15,6 +15,7 @@
 #include <time.h>
 #include <boost/random.hpp>
 #include <Windows.h>
+#include <direct.h>
 #include <fstream>
 /*#include "metadata.h"*/
 
@@ -67,11 +68,15 @@ typedef boost::shared_ptr<boost::asio::ip::tcp::socket> socket_ptr;
 #define ERASURE_CODE_PACKETSIZE 1024
 #define ERASURE_CODE_BUFFERSIZE 1024
 
-
 //Max number of servers
-#define NUMBER_OF_SERVER 2560
+#define NUMBER_OF_SERVER 256
+#define STARTING_SERVER_ID 888
 
 extern vector<string> split(string& str,const char* c);
+
+//Assign different roles to different data blocks on servers
+extern enum Data_Type {full_copy, data_1, data_2, data_3, data_4, parity_1, parity_2};
+const Data_Type types[ERASURE_CODE_K + ERASURE_CODE_M + 1] = {full_copy, data_1, data_2, data_3, data_4, parity_1, parity_2};
 
 void print_info(string client_id, string method, string uri, string detail);
 
@@ -85,10 +90,10 @@ string int_to_string(unsigned int tmp_int);
 
 int update_file(string file_path, string content, unsigned int offset);
 
+string extract_pure_obj_name(string full_path);
 
-//Assign different roles to different data blocks on servers
-extern enum Data_Type {full_copy, data_1, data_2, data_3, data_4, parity_1, parity_2};
-const Data_Type types[ERASURE_CODE_K + ERASURE_CODE_M + 1] = {full_copy, data_1, data_2, data_3, data_4, parity_1, parity_2};
+string return_full_path(string obj_name);
+
 
 template <typename Handler>
 void transmit_file(tcp::socket& socket, random_access_handle& file, Handler handler)

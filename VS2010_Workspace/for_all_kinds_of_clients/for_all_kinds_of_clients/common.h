@@ -38,6 +38,8 @@ unsigned int get_random_offset(unsigned int content_length);
 
 string get_random_update_content();
 
+string update_request_random_file_name(int thread_id);
+
 string get_systime_string();
 template <typename Handler>
 void transmit_file(tcp::socket& socket, random_access_handle& file, Handler handler)

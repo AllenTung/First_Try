@@ -63,42 +63,51 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 
 			if (request_.method == "GET")
 			{
-// 				map<string, metadata>::iterator it = server::obj_meta_table.begin();
-// 				for (; it != server::obj_meta_table.end(); it++)
-// 				{
-// 					cout << it->first << endl;
-// 					cout << it->second.history_record.at(0).request_timestamp << endl << endl;
-// 				}
-// 				if (obj_meta_table.count(request_.obj_id) > 0)
-// 				{
-// 					cout << "File found !!!!!! " << endl;
-// 					cout << obj_meta_table[request_.obj_id].history_record.at(0).request_timestamp << endl;
-// 				}		
-				
-				boost::system::error_code ec;
-				file_.assign(::CreateFile((request_.obj_id).c_str(), GENERIC_READ, FILE_SHARE_READ, 0,
-					OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, 0), ec);
-				if (file_.is_open())
+				string pure_obj_name = extract_pure_obj_name(request_.obj_id);
+				map<string, metadata>::iterator it = server::obj_meta_table.find(pure_obj_name);
+				if (it!= server::obj_meta_table.end())
 				{
-					print_info(request_.client_id, request_.method, request_.obj_id, "Open done!Now transmitting to client....");
-					transmit_file(socket_, file_, boost::bind(&connection::handle_write, this, boost::asio::placeholders::error));
+					cout << "***************   File found !!!!!!  ****************** " << endl;
+
+					string full_local_path = return_full_path(pure_obj_name);
+					boost::system::error_code ec;
+					file_.assign(::CreateFile(full_local_path.c_str(), GENERIC_READ, FILE_SHARE_READ, 0,
+						OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, 0), ec);
+					if (file_.is_open())
+					{
+						print_info(request_.client_id, request_.method, pure_obj_name, "Open done!Now transmitting to client....");
+						transmit_file(socket_, file_, boost::bind(&connection::handle_write, this, boost::asio::placeholders::error));
+					}
+					else
+					{
+						print_info(request_.client_id, request_.method, pure_obj_name, "Error occurs when opening the file!");
+						handle_write(ec);
+						return;
+					}
 				}
 
 				else
 				{
-					print_info(request_.client_id, request_.method, request_.obj_id, "Error occurs when opening the file!");
+					//Object doesn't exist, quit
+					cout << pure_obj_name << " DOSEN'T EXIST !!!!" << endl;
+					boost::system::error_code ec;
 					handle_write(ec);
-					return;
 				}
 			}
 #pragma endregion get_request
 #pragma region update_request
 
+			/* 对于一个object的分块和校验块，命名都跟master node上的一样的，但是在data type里面有所不同
+			   因此update的操作的时候，client肯定也是以原文件的名字来发送update request，然后在server端的话，也是用这个来在obj_meta_table里面进行查找*/
+
+
 			else if (request_.method == "UPDATE")
 			{
 				//request_handler_.handle_post_request(request_, reply_);
+				string pure_obj_name = extract_pure_obj_name(request_.obj_id);
+				string full_local_path = return_full_path(pure_obj_name);
+				
 				boost::system::error_code err_code;
-
 				reply_.server_status = "ready_for_update";
 				boost::asio::write(socket_, reply_.simple_ready_buffers(), err_code);
 
@@ -114,7 +123,7 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 
 				try
 				{
-					int done = update_file(request_.obj_id, update_content, request_.update_offset);
+					int done = update_file(full_local_path, update_content, request_.update_offset);
 
 					if (done == 1)
 					{
@@ -123,19 +132,24 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 						reply_.server_status = "update_done";
 						boost::asio::write(socket_, reply_.simple_ready_buffers(), err_code_done);
 
-// 						metadata obj_meta(request_.content_length, full_copy, request_.client_id, request_.request_timestamp);
-// 						obj_meta_table.insert(make_pair(request_.obj_id, obj_meta));
+						//Record the update client and according timestamp
+						map<string ,metadata>::iterator it = server::obj_meta_table.find(pure_obj_name);
+						if(it != server::obj_meta_table.end())
+						{
+							it->second.insert_new_record(request_.client_id, request_.request_timestamp);
+						}
+
 						handle_write(err_code);
 					}
 					else 
 					{
-						cout << "Error occurs when update the file : " << request_.obj_id << endl;
+						cout << "Error occurs when update the file : " << pure_obj_name << endl;
 					}
 
 				}
 				catch (exception& e)
 				{
-					print_info(request_.client_id, request_.method, request_.obj_id, e.what());
+					print_info(request_.client_id, request_.method, pure_obj_name, e.what());
 				} 
 
 			}
@@ -150,7 +164,12 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 				cout << "In handle transmit data block : Dealing with the block with size of : " << request_.content_length << "B ***" << endl;
 
 				request_handler_.handle_transmit_block_request(request_, reply_);
-				
+
+				//Master node uses pure object name to construct the request, no extraction is needed
+				string pure_obj_name = request_.obj_id;
+				string full_local_path = return_full_path(pure_obj_name);
+
+				//Send back the ready status
 				reply_.server_status = "ready_for_post";
 				boost::system::error_code err_code;
 				boost::asio::write(socket_, reply_.simple_ready_buffers(), err_code);
@@ -160,7 +179,7 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 				try
 				{
 					int forcin = 0;
-					ofstream output_for_trans((request_.obj_id).c_str(), ios::app | ios::binary);
+					ofstream output_for_trans(full_local_path.c_str(), ios::app | ios::binary);
 					char* for_recv = new char[RECEIVE_BUFFER_SIZE];
 					int per_receive = 0;
 					int tmp_count = 0;
@@ -181,7 +200,7 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 							//若tmp_count还为0，那么就是出现了异常
 							if (tmp_count > 0)
 							{
-								cout << request_.obj_id << "::::::::Per_receive is ZERO !!! Receiving quits !!!Total amount: " << tmp_count << endl;
+								cout << pure_obj_name << "::::::::Per_receive is ZERO !!! Receiving quits !!!Total amount: " << tmp_count << endl;
 								break;
 							}
 							
@@ -193,12 +212,12 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 											
 						if (tmp_count >= request_.content_length)
 						{                       
-							cout << request_.obj_id << "::::::::Total amount is equal to content-length : " << tmp_count << endl;
+							cout << pure_obj_name << "::::::::Total amount is equal to content-length : " << tmp_count << endl;
 							break;
 						}
 					}
 
-					cout << "About to insert into the obj_meta table:" << request_.obj_id << endl;
+					cout << "About to insert into the obj_meta table:" << pure_obj_name << endl;
 
 					output_for_trans.close();
 					delete []for_recv;
@@ -206,10 +225,10 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 					//Insert 
 					pair<map<string, metadata>::iterator, bool> test_pair;
 					metadata obj_meta(request_.content_length, request_.data_type, request_.client_id, request_.request_timestamp);
-					test_pair = server::obj_meta_table.insert(make_pair(request_.obj_id, obj_meta));
+					test_pair = server::obj_meta_table.insert(make_pair(pure_obj_name, obj_meta));
 
 					if(test_pair.second == true) {
-						cout << "Successfully inserted the value :" << test_pair.first->first << endl;
+						cout << "Successfully inserted the value :" << test_pair.first->first << "   Data type : " << request_.data_type << endl;
 					}
 					else 
 					{
@@ -220,7 +239,7 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 				}
 				catch (exception& e)
 				{
-					print_info(request_.client_id, request_.method, request_.obj_id, e.what());
+					print_info(request_.client_id, request_.method, pure_obj_name, e.what());
 				} 
 			}
 #pragma endregion transmit_request
@@ -232,20 +251,20 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 				boost::system::error_code err_code;
 				reply_.server_status = "ready_for_post";
 				boost::asio::write(socket_, reply_.simple_ready_buffers(), err_code);
-				// 				boost::asio::async_write(socket_, reply_.to_buffers(),
-				// 					boost::bind(&connection::handle_write, shared_from_this(), 
-				// 					boost::asio::placeholders::error));
-				//After a faked response , prepare the socket for the transmition from the client
+
+				//After ready response , prepare the socket for the transmition from the client
 				boost::asio::socket_base::receive_buffer_size option(RECEIVE_BUFFER_SIZE);
 				socket_.set_option(option);
+
+				string pure_obj_name = extract_pure_obj_name(request_.obj_id);
+				string full_local_path = return_full_path(pure_obj_name);
 
 				try
 				{
 					int forcin = 0;
-					ofstream output_for_trans((request_.obj_id).c_str(), ios::app | ios::binary);
+					ofstream output_for_trans(full_local_path.c_str(), ios::app | ios::binary);
 
 					char* for_recv = new char[RECEIVE_BUFFER_SIZE];
-					char* for_recv_tiny = new char[32];
 					unsigned int per_receive = 0;
 					unsigned int tmp_count = 0;
 
@@ -263,25 +282,23 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 
 						if (tmp_count >= request_.content_length)
 						{
-							print_info(request_.client_id, request_.method, request_.obj_id, "This process finished successfully!");
+							print_info(request_.client_id, request_.method, pure_obj_name, "This process finished successfully!");
 							break;
 						}
 					}
-
-					cout << "post finished , about to insert the record!" << endl;
-
-
 					output_for_trans.close();
 					delete []for_recv;
-					//ec_io_service.run();
+
+					cout << "Post finished , about to insert the record!" << endl;
 
 
 					//Insert the record
 					pair<map<string, metadata>::iterator, bool> test_pair;
 					metadata obj_meta(request_.content_length, full_copy, request_.client_id, request_.request_timestamp);
-					test_pair = server::obj_meta_table.insert(make_pair(request_.obj_id, obj_meta));
+					test_pair = server::obj_meta_table.insert(make_pair(pure_obj_name, obj_meta));
 
-					if(test_pair.second == true) {
+					if(test_pair.second == true) 
+					{
 						cout << "Successfully inserted the value :" << test_pair.first->first<< endl;
 					}
 					else 
@@ -294,11 +311,10 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 					              Endoing process activated
 					*******************************************************/
                     cout << "Now server : " << server_id << " begins to do the erasure coding part !" << endl;
-					int ec_done = encoder_.encode_file(ec_io_service, ec_socket, request_, server_id);
+					int ec_done = encoder_.encode_file(ec_io_service, ec_socket, request_, server_id, pure_obj_name, full_local_path);
 					after_ec = 1;
 					cout << "Now behind the function of encode_file !" << endl;
 					
-
 					//Just for the close of connection
 					boost::system::error_code err_code_done;
 					reply_.server_status = "post_done";

@@ -48,6 +48,7 @@ int main()
 
 	string config_file = "\\conf.txt";
 	char* config_path = strcat(cur_dir, config_file.c_str());
+	cout << config_path;
 
 	FILE* fp = fopen(config_path, "rb");
 	int lSize;
@@ -72,7 +73,7 @@ int main()
 	int client_id = -1;
 	int client_pool = -1;
 	int target_port = -1;
-
+	int request_type = -1;
 	if (config_content.find("client_id:") < NO_SUCH_SUBSTRING) {
 		string temp_server_id = config_content.substr(config_content.find("client_id:") + 10, config_content.find_first_of("\r\n", config_content.find("client_id:")) - config_content.find("client_id") - 10);
 		client_id = atoi(temp_server_id.c_str());
@@ -88,6 +89,10 @@ int main()
 	if (config_content.find("target_port:") < NO_SUCH_SUBSTRING) {
 		string temp_target_port = config_content.substr(config_content.find("target_port:") + 12, config_content.find_first_of("\r\n", config_content.find("target_port:")) - config_content.find("target_port:") - 12);
 		target_port = atoi(temp_target_port.c_str());
+	}
+	if (config_content.find("request_type:") < NO_SUCH_SUBSTRING) {
+		string temp_type = config_content.substr(config_content.find("request_type:") + 13, config_content.find_first_of("\r\n", config_content.find("request_type:")) - config_content.find("request_type:") - 13);
+		request_type = atoi(temp_type.c_str());
 	}
 
 	//Creat some io_service
@@ -111,18 +116,18 @@ int main()
 	{
 		if (thread_id%3 == 0)
 		{
-			boost::shared_ptr<boost::thread> thread(new boost::thread(boost::bind(&client::launch_client, clients[thread_id], POST_REQUEST, thread_id)));	
+			boost::shared_ptr<boost::thread> thread(new boost::thread(boost::bind(&client::launch_client, clients[thread_id], request_type, thread_id)));	
 			thread_pool.push_back(thread);
 		}
 
 		else if (thread_id%3 == 1)
 		{
-			boost::shared_ptr<boost::thread> thread(new boost::thread(boost::bind(&client::launch_client, clients[thread_id], POST_REQUEST, thread_id)));
+			boost::shared_ptr<boost::thread> thread(new boost::thread(boost::bind(&client::launch_client, clients[thread_id], request_type, thread_id)));
 			thread_pool.push_back(thread);
 		}	
 		else if (thread_id%3 == 2)
 		{
-			boost::shared_ptr<boost::thread> thread(new boost::thread(boost::bind(&client::launch_client, clients[thread_id], POST_REQUEST, thread_id)));
+			boost::shared_ptr<boost::thread> thread(new boost::thread(boost::bind(&client::launch_client, clients[thread_id], request_type, thread_id)));
 			thread_pool.push_back(thread);
 		}
 		//cin >> forcin;

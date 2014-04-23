@@ -15,7 +15,7 @@ using namespace std;
 using boost::asio::ip::tcp;
 
 proxy_server::proxy_server(const string& address, const string& port,
-	const string& doc_root, int thread_num, int s_id)
+	const string& doc_root, int thread_num, int s_id, string run_mode)
 	:io_pool(thread_num),
 	signals_(io_pool.get_io_service()),
 	acceptor_(io_pool.get_io_service()),
@@ -45,7 +45,7 @@ proxy_server::proxy_server(const string& address, const string& port,
 	acceptor_.listen();
 
 	cout << "proxy_server: " << proxy_server_id << " is running!" << endl;
-	start_accept();
+	start_accept(run_mode);
 }
 void proxy_server::run()
 {
@@ -68,19 +68,19 @@ int proxy_server::choose_connection()
 	return free_connectoin;
 }
 
-void proxy_server::start_accept()
+void proxy_server::start_accept(string run_mode)
 {
-	new_connection_.reset(new connection(io_pool.get_io_service(), request_handler_));
-	acceptor_.async_accept(new_connection_->socket_, boost::bind(&proxy_server::handle_accept, this, boost::asio::placeholders::error));        
+	new_connection_.reset(new connection(io_pool.get_io_service(), request_handler_, run_mode));
+	acceptor_.async_accept(new_connection_->socket_, boost::bind(&proxy_server::handle_accept, this, run_mode, boost::asio::placeholders::error));        
 }
 
-void proxy_server::handle_accept(const boost::system::error_code& e)
+void proxy_server::handle_accept(string run_mode, const boost::system::error_code& e)
 {
 	if (!e)
 	{
 		new_connection_->start();
 	}
-	start_accept();
+	start_accept(run_mode);
 }
 
 void proxy_server::handle_stop()

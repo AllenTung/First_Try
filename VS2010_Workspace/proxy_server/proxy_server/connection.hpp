@@ -51,11 +51,13 @@ public:
 	//The file name for the transmit file
 	string file_name;
 
+	//Running mode
+	string mode;
 	//These are dedicated sockets for erasure coding communication between server and serve
 
 	random_access_handle file_;
 	// Construct a connection with the given io_service.
-	connection(boost::asio::io_service& io_service, request_handler& handler);
+	connection(boost::asio::io_service& io_service, request_handler& handler, string run_mode);
 
 /*	connection(boost::asio::io_service& io_service, const string filename);*/
 

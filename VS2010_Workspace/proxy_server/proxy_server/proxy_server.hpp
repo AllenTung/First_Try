@@ -48,12 +48,11 @@ public:
 
 	//File name for the method Transmit file
 	string file_name;
-	explicit proxy_server(const string& address, const string& port, const string& root_dir, int thread_num, int s_id);
-	explicit proxy_server(const string& address, const string& port, const string& root_dir, int thread_num, int s_id, const string& filename);
+	explicit proxy_server(const string& address, const string& port, const string& root_dir, int thread_num, int s_id, string run_mode);
 	//Run the proxy_server's io_service loop
 	void run();
-	void start_accept();
-	void handle_accept(const boost::system::error_code& e);
+	void start_accept(string run_mode);
+	void handle_accept(string run_mode, const boost::system::error_code& e);
 	void handle_stop();
 	int choose_connection();
 	void start_handle();

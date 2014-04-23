@@ -11,8 +11,8 @@ using namespace std;
 using boost::asio::ip::tcp;
 
 
-connection::connection(boost::asio::io_service& io_service, request_handler& handler)
-	:socket_(io_service), request_handler_(handler),file_(io_service)
+connection::connection(boost::asio::io_service& io_service, request_handler& handler, string run_mode)
+	:socket_(io_service), request_handler_(handler),file_(io_service),mode(run_mode)
 {
 	busy = 1;
 }
@@ -57,8 +57,9 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 			{
 				try
 				{
-					//reply_.server_id = target_server_location(request_.obj_id);
-					reply_.server_id = 888;
+					reply_.server_id = target_server_location(request_.obj_id);
+					if(mode == "test")
+						reply_.server_id = 888;
 					boost::system::error_code err_code;
 					boost::asio::write(socket_, reply_.simple_location_buffers(), err_code);
 					handle_write(err_code);
@@ -72,8 +73,9 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 			{
 				try
 				{
-					//reply_.server_id = target_server_location(request_.obj_id);
-					reply_.server_id = 888;
+					reply_.server_id = target_server_location(request_.obj_id);
+					if(mode == "test")
+						reply_.server_id = 888;
 					boost::system::error_code err_code;
 					boost::asio::write(socket_, reply_.simple_location_buffers(), err_code);
 					handle_write(err_code);
@@ -87,8 +89,22 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 			{
 				try
 				{
-					//reply_.server_id = target_server_location(request_.obj_id) + request_.update_offset / (request_.content_length / ERASURE_CODE_K) + 1;
-					reply_.server_id = 888;
+					//The content-length here represents the original file's length but not the updated part
+					//The updated part is directly contained in the request header
+					//Third thing: the server_id begins at: 888 
+					int starting_id = target_server_location(request_.obj_id);
+					if(mode == "test")
+					{
+						starting_id = 888;
+					}
+					reply_.server_id = starting_id + request_.update_offset / (request_.content_length / ERASURE_CODE_K) + 1;
+
+					// Round circle calculation
+					if (reply_.server_id > STARTING_SERVER_ID + NUMBER_OF_SERVER - 1)
+					{
+						reply_.server_id -= NUMBER_OF_SERVER;
+					}
+
 					boost::system::error_code err_code;
 					boost::asio::write(socket_, reply_.simple_location_buffers(), err_code);
 					handle_write(err_code);

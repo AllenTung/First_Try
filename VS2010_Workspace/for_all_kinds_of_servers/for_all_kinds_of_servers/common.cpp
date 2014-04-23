@@ -123,3 +123,20 @@ int update_file(string file_path, string content, unsigned int offset)
 
 	return 1;
 }
+
+string extract_pure_obj_name(string full_path)
+{
+	string obj_name = full_path.substr(full_path.find_last_of("\\") + 1);
+	return obj_name;
+}
+
+string return_full_path(string obj_name)
+{
+	char* curdir;
+	curdir = (char*)malloc(sizeof(char)*1000);	
+	_getcwd(curdir, 1000);
+	string obj_prefix(curdir);
+	string full_obj_name = obj_prefix + "\\" + obj_name;
+
+	return full_obj_name;
+}
