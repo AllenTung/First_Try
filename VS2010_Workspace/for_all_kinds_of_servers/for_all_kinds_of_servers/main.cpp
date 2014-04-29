@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <vector>
 #include <map>
+#include <algorithm>
 #include <boost/asio.hpp>
 #include <boost/bind.hpp>
 #include <boost/array.hpp>
@@ -26,6 +27,12 @@ int main()
 	int forcin = 0, argc = 4;
 
 #pragma region test_zone
+// 	for(int i = 0; i<100 ;i++)
+// 		cout << my_random_long() % 196608 << endl;
+// 
+// 	cin >> forcin;
+// 	cout << data_type_vector.size() << endl;
+// 	cin >> forcin;
 // 	string temp_fuck = "fuck";
 // 	string temp2 = "fuck";
 // 	if (temp_fuck == temp2)
@@ -33,7 +40,7 @@ int main()
 // 	cin >> forcin;
 //  	string temp_string_test = "fuck";
 // 	cout << temp_string_test.length() << endl;
-// 	cin >> forcin;
+// 	cin >> forcin
 // 	string temp2= "me";
 // 	temp_string_test += temp2 + " please";
 // 	cout << temp_string_test;

@@ -106,7 +106,7 @@ int newer_timestamp_comparison(string t1, string t2)
 	return 0;
 }
 
-int update_file(string file_path, string content, unsigned int offset)
+int update_file(string file_path, string content, unsigned int offset, unsigned int total_length)
 {
 	ofstream random_writer(file_path.c_str(), ios::in | ios::out | ios::binary);
 
@@ -126,8 +126,15 @@ int update_file(string file_path, string content, unsigned int offset)
 
 string extract_pure_obj_name(string full_path)
 {
-	string obj_name = full_path.substr(full_path.find_last_of("\\") + 1);
-	return obj_name;
+	if(full_path.find_last_of("\\") < NO_SUCH_SUBSTRING)
+	{
+		string obj_name = full_path.substr(full_path.find_last_of("\\") + 1);
+		return obj_name;
+	}
+	else
+	{
+		return full_path;
+	}	
 }
 
 string return_full_path(string obj_name)
@@ -140,3 +147,15 @@ string return_full_path(string obj_name)
 
 	return full_obj_name;
 }
+
+string return_update_path(string obj_name)
+{
+	char* curdir;
+	curdir = (char*)malloc(sizeof(char)*1000);	
+	_getcwd(curdir, 1000);
+	string obj_prefix(curdir);
+	string full_obj_name = obj_prefix + "\\update\\" + obj_name;
+
+	return full_obj_name;
+}
+

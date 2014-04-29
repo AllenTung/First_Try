@@ -47,6 +47,11 @@ boost::tribool request_parser::simple_parse(request& req, boost::array<char, BUF
 		string temp_update_offset = req_string.substr(req_string.find("update_offset:") + 14, req_string.find_first_of("\r\n", req_string.find("update_offset:")) - req_string.find("update_offset:") - 14);
 		req.update_offset = strtoul(temp_update_offset.c_str(), NULL, 10);
 	}
+	if (req_string.find("data_type:") < NO_SUCH_SUBSTRING) {
+		string temp_data_type = req_string.substr(req_string.find("data_type:") + 10, req_string.find_first_of("\r\n", req_string.find("data_type:")) - req_string.find("data_type:") - 10);
+		int data_type_index = (int)strtoul(temp_data_type.c_str(), NULL, 10);
+		req.data_type = types[data_type_index];
+	}
 	if (req_string.find("request_timestamp:") < NO_SUCH_SUBSTRING) {
 		req.request_timestamp = req_string.substr(req_string.find("request_timestamp:") + 18, req_string.find_first_of("\r\n", req_string.find("request_timestamp:")) - req_string.find("request_timestamp:") - 15);
 	}

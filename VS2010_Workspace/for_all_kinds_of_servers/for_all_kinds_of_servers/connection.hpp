@@ -7,6 +7,8 @@
 #include <stdio.h>
 #include <string>
 #include <map>
+#include <vector>
+#include <algorithm>
 #include <boost/asio.hpp>
 #include <boost/array.hpp>
 #include <boost/noncopyable.hpp>

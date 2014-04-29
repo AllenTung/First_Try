@@ -97,8 +97,10 @@ string get_systime_string()
 
 unsigned int get_random_offset(unsigned int content_length)
 {
-	srand((unsigned)time(NULL));
-	unsigned int random_offset = rand()% content_length;
+// 	srand((unsigned)time(NULL));
+// 	unsigned int random_offset = rand()% content_length;
+
+	unsigned int random_offset = my_random_long() % content_length;
  
 	if (content_length > 100)
 	{
@@ -106,6 +108,19 @@ unsigned int get_random_offset(unsigned int content_length)
 	}
 
 	return random_offset;
+}
+
+static long get_my_random_long()
+{
+	static boost::mt19937 gen(static_cast<unsigned int> (std::time(0)));
+	boost::random::uniform_int_distribution<> engine(1, INT_MAX);
+	boost::variate_generator<boost::mt19937&,boost::random::uniform_int_distribution<> > rng(gen, engine);
+
+	return rng();
+}
+long my_random_long()
+{
+	return get_my_random_long();
 }
 
 string get_random_update_content()
@@ -126,8 +141,15 @@ string get_random_update_content()
 
 string extract_pure_obj_name(string full_path)
 {
-	string obj_name = full_path.substr(full_path.find_last_of("\\") + 1);
-	return obj_name;
+	if(full_path.find_last_of("\\") < NO_SUCH_SUBSTRING)
+	{
+		string obj_name = full_path.substr(full_path.find_last_of("\\") + 1);
+		return obj_name;
+	}
+	else
+	{
+		return full_path;
+	}	
 }
 
 string return_full_path(string obj_name)

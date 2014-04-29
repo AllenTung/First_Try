@@ -50,6 +50,13 @@ public:
 	request();
 	request(request& req);
 	vector<boost::asio::const_buffer> to_buffers();	
+
+	//all to buffers is mainly for update request
+	vector<boost::asio::const_buffer> all_to_buffers();
+	//header to buffer is for the regular reqeusts
+	vector<boost::asio::const_buffer> header_to_buffers();
+	//temporary solution for the content only
+	vector<boost::asio::const_buffer> content_to_buffers();
 };
 
 #endif

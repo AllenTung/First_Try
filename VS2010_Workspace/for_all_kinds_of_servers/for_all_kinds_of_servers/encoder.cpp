@@ -321,6 +321,7 @@ int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> 
 		transmit_data_request.content_length /= k;
 		transmit_data_request.obj_id = pure_obj_name;
 		transmit_data_request.data_type = types[i];
+		transmit_data_request.server_id = server_id;
 
 		boost::asio::write(*(ec_socket.at(i - 1)), transmit_data_request.to_buffers());		
 	}
@@ -423,7 +424,7 @@ int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> 
 						transmit_data_request.content_length /= k;
 						transmit_data_request.obj_id = pure_obj_name;
 						transmit_data_request.data_type = types[i + 1];
-
+						transmit_data_request.server_id = server_id;
 						boost::asio::write(*(ec_socket.at(i)), transmit_data_request.to_buffers());	
 					}
 

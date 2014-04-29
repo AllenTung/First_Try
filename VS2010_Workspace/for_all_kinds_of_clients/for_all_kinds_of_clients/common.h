@@ -1,3 +1,5 @@
+#ifndef COMMON_HPP
+#define COMMON_HPP
 #pragma once
 #include <stdlib.h>
 #include <stdio.h>
@@ -8,6 +10,8 @@
 #include <direct.h>
 #include <boost/asio.hpp>
 #include <boost/enable_shared_from_this.hpp>
+#include <boost/random.hpp>
+#include <algorithm>
 #if defined(BOOST_ASIO_HAS_WINDOWS_OVERLAPPED_PTR)
 using namespace std;
 
@@ -38,6 +42,8 @@ void print_info(string client_id, string method, string uri, string detail);
 unsigned int get_random_offset(unsigned int content_length);
 
 string get_random_update_content();
+
+long my_random_long();
 
 string update_request_random_file_name(int thread_id);
 
@@ -77,3 +83,5 @@ void transmit_file(tcp::socket& socket, random_access_handle& file, Handler hand
 #else // defined(BOOST_ASIO_HAS_WINDOWS_OVERLAPPED_PTR)
 # error Overlapped I/O not available on this platform
 #endif // defined(BOOST_ASIO_HAS_WINDOWS_OVERLAPPED_PTR)
+
+#endif

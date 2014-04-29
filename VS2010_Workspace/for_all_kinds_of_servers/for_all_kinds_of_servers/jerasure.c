@@ -1126,7 +1126,8 @@ void jerasure_do_scheduled_operations(char **ptrs, int **operations, int packets
 	char *dptr;
 	int op;
 
-	for (op = 0; operations[op][0] >= 0; op++) {
+	for (op = 0; operations[op][0] >= 0; op++) 
+	{
 		sptr = ptrs[operations[op][0]] + operations[op][1]*packetsize;
 		dptr = ptrs[operations[op][2]] + operations[op][3]*packetsize;
 		if (operations[op][4]) {
@@ -1137,7 +1138,8 @@ void jerasure_do_scheduled_operations(char **ptrs, int **operations, int packets
 			printf("xor(0x%x, 0x%x -> 0x%x, %d)\n", sptr, dptr, dptr, packetsize); */
 			galois_region_xor(sptr, dptr, dptr, packetsize);
 			jerasure_total_xor_bytes += packetsize;
-		} else {
+		} 
+		else {
 			/*      printf("memcpy(0x%x <- 0x%x)\n", dptr, sptr); */
 			memcpy(dptr, sptr, packetsize);
 			jerasure_total_memcpy_bytes += packetsize;
@@ -1152,11 +1154,18 @@ void jerasure_schedule_encode(int k, int m, int w, int **schedule,
 	int i, j, tdone;
 
 	ptr_copy = talloc(char *, (k+m));
-	for (i = 0; i < k; i++) ptr_copy[i] = data_ptrs[i];
-	for (i = 0; i < m; i++) ptr_copy[i+k] = coding_ptrs[i];
-	for (tdone = 0; tdone < size; tdone += packetsize*w) {
+	for (i = 0; i < k; i++) 
+		ptr_copy[i] = data_ptrs[i];
+
+	for (i = 0; i < m; i++) 
+		ptr_copy[i+k] = coding_ptrs[i];
+
+	for (tdone = 0; tdone < size; tdone += packetsize * w) 
+	{
 		jerasure_do_scheduled_operations(ptr_copy, schedule, packetsize);
-		for (i = 0; i < k+m; i++) ptr_copy[i] += (packetsize*w);
+
+		for (i = 0; i < k+m; i++) 
+			ptr_copy[i] += (packetsize * w);
 	}
 	free(ptr_copy);
 }

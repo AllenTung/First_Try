@@ -12,6 +12,7 @@
 #include <boost/shared_ptr.hpp>
 #include <boost/enable_shared_from_this.hpp>
 #include <boost/asio.hpp>
+#include <algorithm>
 #include <time.h>
 #include <boost/random.hpp>
 #include <Windows.h>
@@ -52,6 +53,7 @@ typedef boost::shared_ptr<boost::asio::ip::tcp::socket> socket_ptr;
 //Request Type among servers, and distinguish the data parity blocks
 #define TRANSMIT_DATA_BLOCK 4
 #define TRANSMIT_PARITY_BLOCK 5
+#define TRANSMIT_UPDATE_CONTENT 6
 
 #define IO_POOL_FETCH_MODE_PLUS 1
 #define IO_POOL_FETCH_MODE_MINUS -1
@@ -78,6 +80,7 @@ extern vector<string> split(string& str,const char* c);
 extern enum Data_Type {full_copy, data_1, data_2, data_3, data_4, parity_1, parity_2};
 const Data_Type types[ERASURE_CODE_K + ERASURE_CODE_M + 1] = {full_copy, data_1, data_2, data_3, data_4, parity_1, parity_2};
 
+
 void print_info(string client_id, string method, string uri, string detail);
 
 int is_prime(int w);
@@ -88,11 +91,13 @@ int newer_timestamp_comparison(string t1, string t2);
 
 string int_to_string(unsigned int tmp_int);
 
-int update_file(string file_path, string content, unsigned int offset);
+int update_file(string file_path, string content, unsigned int offset, unsigned int total_length);
 
 string extract_pure_obj_name(string full_path);
 
 string return_full_path(string obj_name);
+
+string return_update_path(string obj_name);
 
 
 template <typename Handler>

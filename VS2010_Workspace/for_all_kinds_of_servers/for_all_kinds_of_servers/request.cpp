@@ -25,6 +25,8 @@ request:: request(request& req)
 	content_length = req.content_length;
 	update_offset = req.update_offset;
 	data_type = req.data_type;
+	content = req.content;
+	method = req.method;
 }
 /*****************************************************/
 	/*             Format of request            
@@ -82,5 +84,113 @@ vector<boost::asio::const_buffer> request::to_buffers()
 		buffers.push_back(boost::asio::buffer(h.value));
 		buffers.push_back(boost::asio::buffer(misc_strings::crlf));
 	}
+	return buffers;
+}
+
+vector<boost::asio::const_buffer> request::all_to_buffers()
+{
+	vector<boost::asio::const_buffer> buffers;
+
+	//生成POST请求的必须的Header Lines
+	headers.resize(9);
+	headers[0].name = "client_id:";
+	headers[0].value = client_id;
+
+	headers[1].name = "method:";
+	headers[1].value = method;
+
+	headers[2].name = "server_id:";
+	headers[2].value = int_to_string(server_id);
+
+	headers[3].name = "obj_id:";
+	headers[3].value = obj_id;
+
+	headers[4].name = "content_length:";
+	headers[4].value = int_to_string(content_length);
+
+	headers[5].name = "update_offset:";
+	headers[5].value = int_to_string(update_offset);
+
+	headers[6].name = "data_type:";
+	headers[6].value = int_to_string(data_type);
+
+	headers[7].name = "request_timestamp:";
+	headers[7].value = request_timestamp;
+
+	headers[8].name = "content:";
+	headers[8].value = content;
+
+	for (size_t i = 0; i < headers.size(); i++)
+	{
+		header& h = headers[i];
+		if (i == headers.size() - 1)
+		{		
+			//Two line break leads to the updated content, no need for "content:"
+			buffers.push_back(boost::asio::buffer(misc_strings::crlf));
+			buffers.push_back(boost::asio::buffer(h.value));
+			continue;
+		}
+		buffers.push_back(boost::asio::buffer(h.name));
+		buffers.push_back(boost::asio::buffer(h.value));
+		buffers.push_back(boost::asio::buffer(misc_strings::crlf));
+
+	}
+	return buffers;
+}
+
+vector<boost::asio::const_buffer> request::header_to_buffers()
+{
+	vector<boost::asio::const_buffer> buffers;
+
+	headers.resize(8);
+	headers[0].name = "client_id:";
+	headers[0].value = client_id;
+
+	headers[1].name = "method:";
+	headers[1].value = method;
+
+	headers[2].name = "server_id:";
+	headers[2].value = int_to_string(server_id);
+
+	headers[3].name = "obj_id:";
+	headers[3].value = obj_id;
+
+	headers[4].name = "content_length:";
+	headers[4].value = int_to_string(content_length);
+
+	headers[5].name = "update_offset:";
+	headers[5].value = int_to_string(update_offset);
+
+	headers[6].name = "data_type:";
+	headers[6].value = int_to_string(data_type);
+
+	headers[7].name = "request_timestamp:";
+	headers[7].value = request_timestamp;
+
+	for (size_t i = 0; i < headers.size(); i++)
+	{
+		header& h = headers[i];
+		buffers.push_back(boost::asio::buffer(h.name));
+		buffers.push_back(boost::asio::buffer(h.value));
+		buffers.push_back(boost::asio::buffer(misc_strings::crlf));
+	}
+	return buffers;
+}
+
+vector<boost::asio::const_buffer> request::content_to_buffers()
+{
+	vector<boost::asio::const_buffer> buffers;
+
+	headers.resize(1);
+	headers[0].name = "content:";
+	headers[0].value = content;
+
+	for(int i = 0; i < headers.size(); i++)
+	{
+		header& h = headers[i];
+		buffers.push_back(boost::asio::buffer(h.value));
+		buffers.push_back(boost::asio::buffer(misc_strings::crlf));
+	}
+
 	return buffers;
 }
