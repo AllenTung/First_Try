@@ -28,7 +28,7 @@ void request_handler::handle_transmit_block_request(const request& req, reply& r
 
 	//Amend the hearder to simply answer ACK
 	rep.headers[1].name = "server_status:";
-	rep.headers[1].value = "ready_for_post";
+	rep.headers[1].value = READY_FOR_POST_STATUS;
 
 	// Time
 	rep.headers[2].name = "date:";
@@ -50,7 +50,7 @@ void request_handler::handle_post_request(const request& req, reply& rep)
 
 	//Amend the hearder to simply answer ACK
 	rep.headers[1].name = "server_status:";
-	rep.headers[1].value = "ready_for_post";
+	rep.headers[1].value = READY_FOR_POST_STATUS;
 
 	// Time
 	rep.headers[2].name = "date:";

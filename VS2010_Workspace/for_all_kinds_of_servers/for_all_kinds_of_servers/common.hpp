@@ -74,6 +74,26 @@ typedef boost::shared_ptr<boost::asio::ip::tcp::socket> socket_ptr;
 #define NUMBER_OF_SERVER 256
 #define STARTING_SERVER_ID 888
 
+//All kinds of request method
+#define GET_REQUEST "GET"
+#define POST_REQUEST "POST"
+#define UPDATE_REQUEST "UPDATE"
+#define TRANSMIT_UPDATE_CONTENT_REQUEST "TRANSMIT_UPDATE_CONTENT"
+#define TRANSMIT_DELTA_CONTENT_REQUEST "TRANSMIT_DELTA_CONTENT"
+#define TRANSMIT_DATA_BLOCK_REQUEST "TRANSMIT_DATA_BLOCK"
+#define TRANSMIT_PARITY_BLOCK_REQUEST "TRANSMIT_PARITY_BLOCK"
+#define RECONSTRUCT_REQUEST "RECONSTRUCT"
+
+//All kinds of server-status
+#define READY_FOR_POST_STATUS "ready_for_post"
+#define READY_FOR_UPDATE_STATUS "ready_for_update"
+#define READY_FOR_RECONSTRUCTION_STATUS "ready_for_reconstruction"
+#define CONSTRUCTION_DONE_STATUS "construction_done"
+#define POST_DONE_STATUS "post_done"
+#define UPDATE_DONE_STATUS "update_done"
+#define TRY_AGAIN_STATUS "try_again"
+
+
 extern vector<string> split(string& str,const char* c);
 
 //Assign different roles to different data blocks on servers

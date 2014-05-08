@@ -61,7 +61,7 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 
 #pragma region get_request
 
-			if (request_.method == "GET")
+			if (request_.method == GET_REQUEST)
 			{
 				string pure_obj_name = extract_pure_obj_name(request_.obj_id);
 				map<string, metadata>::iterator it = server::obj_meta_table.find(pure_obj_name);
@@ -95,20 +95,21 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 				}
 			}
 #pragma endregion get_request
+
 #pragma region update_request
 
 			/* 对于一个object的分块和校验块，命名都跟master node上的一样的，但是在data type里面有所不同
 			   因此update的操作的时候，client肯定也是以原文件的名字来发送update request，然后在server端的话，也是用这个来在obj_meta_table里面进行查找*/
 
 
-			else if (request_.method == "UPDATE")
+			else if (request_.method == UPDATE_REQUEST)
 			{
 				//request_handler_.handle_post_request(request_, reply_);
 				string pure_obj_name = extract_pure_obj_name(request_.obj_id);
 				string full_local_path = return_full_path(pure_obj_name);
 				
 				boost::system::error_code err_code;
-				reply_.server_status = "ready_for_update";
+				reply_.server_status = READY_FOR_UPDATE_STATUS;
 				boost::asio::write(socket_, reply_.simple_ready_buffers(), err_code);
 
 				boost::asio::socket_base::receive_buffer_size option(RECEIVE_BUFFER_SIZE);
@@ -122,19 +123,17 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 				update_stream >> update_content;
 				request_.content = update_content;
 
+				int done = -1;
 				try
 				{
-					int done = -1;
+					
 					map<string, metadata>::iterator obj_it = server::obj_meta_table.find(pure_obj_name);
 					if (obj_it != server::obj_meta_table.end())
 					{
 						vector<Data_Type> data_type_vector(types, types + ERASURE_CODE_K + ERASURE_CODE_M + 1);
 						vector<Data_Type>::iterator data_it = find(data_type_vector.begin(), data_type_vector.end(), obj_it->second.data_type);
 						unsigned int real_offset = request_.update_offset - ((*data_it) - 1) * (obj_it->second.content_length);
-						cout << "Id the data_type: " << *data_it << endl;
-						cout << "Id the content_length: " << obj_it->second.content_length << endl;
-						cout << "Id the real offset :" << real_offset << endl;
-						cin >> done;
+
 						done = update_file(full_local_path, update_content, real_offset, 0);
 					}
 
@@ -142,23 +141,35 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 					{
 						//Just for the close of connection
 						boost::system::error_code err_code_done;
-						reply_.server_status = "update_done";
+						reply_.server_status = UPDATE_DONE_STATUS;
 						boost::asio::write(socket_, reply_.simple_ready_buffers(), err_code_done);
 
 						//Record the update client and according timestamp
 						map<string ,metadata>::iterator it = server::obj_meta_table.find(pure_obj_name);
 						if(it != server::obj_meta_table.end())
 						{
-							it->second.insert_new_record(request_.client_id, request_.request_timestamp);
+							it->second.insert_new_record(request_.client_id, request_.request_timestamp, server_id, false);
 						}
 
-						//Next,send the delta-update part to server holding the parity block
-						for (int i = 1; i <= ERASURE_CODE_M ; i++)
+						//Next,send the delta-update part to server holding the parity block, and a heads-up to the master node
+						//Hence the total number of request is M+1
+
+						int enough_for_rec = 0;
+
+						for (int i = 1; i <= ERASURE_CODE_M + 1 ; i++)
 						{
 
-							//Connect the next targeted server and send a transmit_data request
-							int next_target_server = it->second.first_parity_location;
-							if(i > 1)
+							//Connect the next targeted server and send a transmit_update_content or transmit_delta_content request
+							int next_target_server = -1;
+							if(i == 1)
+							{
+								next_target_server = it->second.full_copy_location;
+							}
+							else if(i == 2)
+							{
+								next_target_server = it->second.first_parity_location;
+							}
+							else if(i == 3)
 							{
 								next_target_server = it->second.second_parity_location;
 							}
@@ -169,9 +180,17 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 							request transmit_data_request(request_);
 
 							//Set obj_id directly to pure form.
-							transmit_data_request.method = "TRANSMIT_UPDATE_CONTENT";
+							transmit_data_request.method = TRANSMIT_UPDATE_CONTENT_REQUEST;
+							if (i > 1)
+							{
+								transmit_data_request.method = TRANSMIT_DELTA_CONTENT_REQUEST;
+							}
+							
 							transmit_data_request.content_length = update_content.length();
 							transmit_data_request.obj_id = pure_obj_name;
+
+							//This is used to inform parity and master node the original target node of this update operation
+							transmit_data_request.server_id = server_id;
 
 							boost::asio::write(*(ec_socket.at(i - 1)), transmit_data_request.header_to_buffers());	
 
@@ -184,8 +203,7 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 								string response_string;
 								update_stream >> response_string;
 
-
-								if(response_string.find("ready_for_update") < NO_SUCH_SUBSTRING)
+								if(response_string.find(READY_FOR_UPDATE_STATUS) < NO_SUCH_SUBSTRING)
 								{
 									cout << "***************************************" << endl;
 									cout << "Server: " << next_target_server << "is totally ready !!!!!" << endl;
@@ -193,7 +211,7 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 									break;
 								}
 
-								else if(response_string.find("try_again") < NO_SUCH_SUBSTRING)
+								else if(response_string.find(TRY_AGAIN_STATUS) < NO_SUCH_SUBSTRING)
 								{
 									cout << "***************************************" << endl;
 									cout << "Server: " << next_target_server << "is somehow blocked !!!!!" << endl;
@@ -204,29 +222,47 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 								}
 							}
 
-							boost::system::error_code execution_err_code;
-							boost::asio::write(*(ec_socket.at(i - 1)), transmit_data_request.content_to_buffers(), execution_err_code);
-
-							//Wait for ACK and then close the socket and end this journey
-							boost::asio::streambuf response_ack;
-							boost::asio::read_until(*(ec_socket.at(i - 1)), response_ack, "\r\n");
-							istream ack_stream(&response_ack);
-							string ack_string;
-							ack_stream >> ack_string;
-
-							if (ack_string.find("update_done") < NO_SUCH_SUBSTRING)
+							//Cause there's no need to transmit the actual content to master node
+							if (i > 1)
 							{
-								boost::system::error_code ignored_ec;
-								ec_socket.at(i - 1)->shutdown(boost::asio::ip::tcp::socket::shutdown_both, ignored_ec);
-								ec_socket.at(i - 1)->close();			
+								boost::system::error_code execution_err_code;
+								boost::asio::write(*(ec_socket.at(i - 1)), transmit_data_request.content_to_buffers(), execution_err_code);
+
+								//Wait for ACK and then close the socket and end this journey
+								boost::asio::streambuf response_ack;
+								boost::asio::read_until(*(ec_socket.at(i - 1)), response_ack, "\r\n");
+								istream ack_stream(&response_ack);
+								string ack_string;
+								ack_stream >> ack_string;
+
+								if (ack_string.find(UPDATE_DONE_STATUS) < NO_SUCH_SUBSTRING)
+								{
+									boost::system::error_code ignored_ec;
+									ec_socket.at(i - 1)->shutdown(boost::asio::ip::tcp::socket::shutdown_both, ignored_ec);
+									ec_socket.at(i - 1)->close();
+
+									//Accumulate the ack for assuring reconstruction
+									enough_for_rec ++;
+								}
+								else
+								{
+									cout << "No ACK from the server !" << endl;
+								}
 							}
-							else
+
+							//This target node has received enough ack to ask the master node to reconstruct
+							//After finish writing this reply, ec_sockets could be closed and just wait for the master node to re-initiate a 
+							//reconstruct request, to all accountable nodes.
+							if (enough_for_rec >= ERASURE_CODE_M)
 							{
-								cout << "No ACK from the server !" << endl;
+								boost::system::error_code err_code_done;
+								reply_.server_status = UPDATE_DONE_STATUS;
+								boost::asio::write(*(ec_socket.at(0)), reply_.simple_ready_buffers(), err_code_done);
 							}
+
 
 						}
-												
+						after_ec = 1;						
 						handle_write(err_code);
 					}
 					else 
@@ -243,16 +279,16 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 			}
 #pragma endregion update_request
 
-#pragma region transmit_update_content
+#pragma region transmit_delta_content
 
-			else if (request_.method == "TRANSMIT_UPDATE_CONTENT")
+			else if (request_.method == TRANSMIT_DELTA_CONTENT_REQUEST)
 			{
-				//request_handler_.handle_post_request(request_, reply_);
+				//This type of request indicates this server contains the according request object's parity
 				string pure_obj_name = extract_pure_obj_name(request_.obj_id);
 				string full_local_path = return_update_path(pure_obj_name);
 
 				boost::system::error_code err_code;
-				reply_.server_status = "ready_for_update";
+				reply_.server_status = READY_FOR_UPDATE_STATUS;
 				boost::asio::write(socket_, reply_.simple_ready_buffers(), err_code);
 
 				boost::asio::socket_base::receive_buffer_size option(RECEIVE_BUFFER_SIZE);
@@ -276,22 +312,102 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 					cout << "Post finished , about to update the record!" << endl;
 					
 					//Update the record
-// 					pair<map<string, metadata>::iterator, bool> test_pair;
-// 					metadata obj_meta(request_.content_length, full_copy, request_.client_id, request_.request_timestamp);
-// 					test_pair = server::obj_meta_table.insert(make_pair(pure_obj_name, obj_meta));
-// 
-// 					if(test_pair.second == true) 
-// 					{
-// 						cout << "Successfully inserted the value :" << test_pair.first->first<< endl;
-// 					}
-// 					else 
-// 					{
-// 						cout << "Insertion failed!" << endl;
-// 					}
+
+					map<string ,metadata>::iterator it = server::obj_meta_table.find(pure_obj_name);
+					if(it != server::obj_meta_table.end())
+					{
+						//First it's dirty, only when the master node inform of the finish of recon. , it turns clean
+						it->second.insert_new_record(request_.client_id, request_.request_timestamp, request_.server_id, false);
+					}
 					
 					//Just for the close of connection
 					boost::system::error_code err_code_done;
-					reply_.server_status = "update_done";
+					reply_.server_status = UPDATE_DONE_STATUS;
+					boost::asio::write(socket_, reply_.simple_ready_buffers(), err_code_done);
+
+					//After sending ack to inform the target node that dirty version of delta has been stored
+					//The socket between these two guys could be closed for the target node could use this very ack to be the 
+					//sufficient condition to send an Ultimate ACK to according master node
+					handle_write(err_code);
+				}
+				catch (exception& e)
+				{
+					print_info(request_.client_id, request_.method, request_.obj_id, e.what());
+				} 
+
+			}
+#pragma endregion transmit_delta_content
+
+#pragma region transmit_update_content
+
+			else if (request_.method == TRANSMIT_UPDATE_CONTENT_REQUEST)
+			{
+				//This type of request indicates this server contains the full copy of the according object
+				//It would first perceives a "transmit update content" request
+				//Then, it returns a status of ready for update
+				//Next, wait for a ack which is shown in "update done" server status
+				//Finally, it calls for a request of reconstruction, which is "RECONSTRUCT"
+
+
+
+				//For now, client_id and request_timestamp are simply used for id the newest version
+				//Cause one client is not able to launch mutiple update to the same object without confirming the last one
+				string pure_obj_name = extract_pure_obj_name(request_.obj_id);
+				string full_local_path = return_update_path(pure_obj_name);
+
+				version newest_version(request_.client_id, request_.request_timestamp, request_.server_id, false);
+
+				boost::system::error_code err_code;
+				reply_.server_status = READY_FOR_UPDATE_STATUS;
+				boost::asio::write(socket_, reply_.simple_ready_buffers(), err_code);
+
+				boost::asio::socket_base::receive_buffer_size option(RECEIVE_BUFFER_SIZE);
+				socket_.set_option(option);
+
+				//Wait for the target node to send ultimate ack
+				boost::asio::streambuf response_buf;
+				boost::asio::read_until(socket_, response_buf, "\r\n");
+				istream response_stream(&response_buf);
+				string response_string;
+				response_stream >> response_string;
+
+				try
+				{
+					int forcin = 0;
+
+					//Receive the ultimate ack from the target node, which means the update content and delta content are all in place
+					//Then launch the construct request
+					if (response_string.find(UPDATE_DONE_STATUS) < NO_SUCH_SUBSTRING)
+					{
+						//Connect those guys
+						for (int i = 1; i <= ERASURE_CODE_K + ERASURE_CODE_M ; i++)
+						{
+
+							//Connect the next targeted server and send a transmit_data request
+							int next_target_server = server_id + i;
+							// Round circle calculation
+							if (next_target_server > STARTING_SERVER_ID + NUMBER_OF_SERVER - 1)
+							{
+								next_target_server -= NUMBER_OF_SERVER;
+							}
+
+							tcp::endpoint end_p(boost::asio::ip::address_v4::from_string("127.0.0.1"), next_target_server);
+							ec_socket.at(i - 1)->connect(end_p);
+
+							request transmit_data_request;
+							
+							//Use the pure object name to construct the request
+							transmit_data_request.content_length /= ERASURE_CODE_K;
+							transmit_data_request.obj_id = pure_obj_name;
+							transmit_data_request.data_type = types[i];
+							transmit_data_request.server_id = server_id;
+
+							boost::asio::write(*(ec_socket.at(i - 1)), transmit_data_request.to_buffers());		
+						}
+					}
+
+					boost::system::error_code err_code_done;
+					reply_.server_status = UPDATE_DONE_STATUS;
 					boost::asio::write(socket_, reply_.simple_ready_buffers(), err_code_done);
 					handle_write(err_code);
 				}
@@ -305,7 +421,7 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 
 #pragma region transmit_request
 
-			else if (request_.method == "TRANSMIT_DATA_BLOCK" || request_.method == "TRANSMIT_PARITY_BLOCK")
+			else if (request_.method == TRANSMIT_DATA_BLOCK_REQUEST || request_.method == TRANSMIT_PARITY_BLOCK_REQUEST)
 			{
 				//Here's the handle process of receiving the data block or parity block
 				//Reply seems could not be eliminated
@@ -319,7 +435,7 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 				string full_local_path = return_full_path(pure_obj_name);
 
 				//Send back the ready status
-				reply_.server_status = "ready_for_post";
+				reply_.server_status = READY_FOR_POST_STATUS;
 				boost::system::error_code err_code;
 				boost::asio::write(socket_, reply_.simple_ready_buffers(), err_code);
 				boost::asio::socket_base::receive_buffer_size option(RECEIVE_BUFFER_SIZE);
@@ -393,7 +509,7 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 					cout << "temp first: " << temp_first << endl << "temp_second: " << temp_second << endl;
 
 					pair<map<string, metadata>::iterator, bool> test_pair;
-					metadata obj_meta(request_.content_length, request_.data_type, request_.client_id, request_.request_timestamp, request_.server_id, temp_first, temp_second);
+					metadata obj_meta(request_.content_length, request_.data_type, request_.client_id, request_.request_timestamp, true, request_.server_id, temp_first, temp_second);
 					test_pair = server::obj_meta_table.insert(make_pair(pure_obj_name, obj_meta));
 
 					if(test_pair.second == true)
@@ -413,13 +529,14 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 				} 
 			}
 #pragma endregion transmit_request
+
 #pragma region post_request
 			else if (request_.method == "POST")
 			{
 
 				request_handler_.handle_post_request(request_, reply_);
 				boost::system::error_code err_code;
-				reply_.server_status = "ready_for_post";
+				reply_.server_status = READY_FOR_POST_STATUS;
 				boost::asio::write(socket_, reply_.simple_ready_buffers(), err_code);
 
 				//After ready response , prepare the socket for the transmition from the client
@@ -478,7 +595,7 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 					cout << endl << "temp_first:" << temp_first << endl << "temp_second:" << temp_second << endl;
 
 					pair<map<string, metadata>::iterator, bool> test_pair;
-					metadata obj_meta(request_.content_length, full_copy, request_.client_id, request_.request_timestamp, server_id, temp_first, temp_second);
+					metadata obj_meta(request_.content_length, full_copy, request_.client_id, request_.request_timestamp, true, server_id, temp_first, temp_second);
 					test_pair = server::obj_meta_table.insert(make_pair(pure_obj_name, obj_meta));
 
 					if(test_pair.second == true) 
@@ -501,7 +618,7 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 					
 					//Just for the close of connection
 					boost::system::error_code err_code_done;
-					reply_.server_status = "post_done";
+					reply_.server_status = POST_DONE_STATUS;
 					boost::asio::write(socket_, reply_.simple_ready_buffers(), err_code_done);
 					handle_write(err_code);
 				}
@@ -520,7 +637,7 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 		if (e.message().find(END_OF_FILE_EXCEPTION) < NO_SUCH_SUBSTRING)
 		{
 			boost::system::error_code err_code_done;
-			reply_.server_status = "try_again";
+			reply_.server_status = TRY_AGAIN_STATUS;
 			boost::asio::write(socket_, reply_.simple_ready_buffers(), err_code_done);
 			start();
 		}

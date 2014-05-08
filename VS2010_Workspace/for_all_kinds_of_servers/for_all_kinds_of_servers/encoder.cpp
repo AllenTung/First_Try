@@ -392,7 +392,7 @@ int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> 
 					update_stream >> response_string;
 
 
-					if(response_string.find("ready_for_post") < NO_SUCH_SUBSTRING)
+					if(response_string.find(READY_FOR_POST_STATUS) < NO_SUCH_SUBSTRING)
 					{
 						cout << "***************************************" << endl;
 						cout << "Server: " << server_id + i + 1 << "is totally ready !!!!!" << endl;
@@ -400,7 +400,7 @@ int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> 
 						break;
 					}
 
-					else if(response_string.find("try_again") < NO_SUCH_SUBSTRING)
+					else if(response_string.find(TRY_AGAIN_STATUS) < NO_SUCH_SUBSTRING)
 					{
 						cout << "***************************************" << endl;
 						cout << "Server: " << server_id + i + 1 << "is somehow blocked !!!!!" << endl;
@@ -412,12 +412,12 @@ int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> 
 						request transmit_data_request(ori_req);
 						if (i < k)
 						{
-							transmit_data_request.method = "TRANSMIT_DATA_BLOCK";
+							transmit_data_request.method = TRANSMIT_DATA_BLOCK_REQUEST;
 							sprintf(fname, "%s\\%s_k%0*d%s", curdir, s1, md, i + 1, s2);
 						}
 						else
 						{
-							transmit_data_request.method = "TRANSMIT_PARITY_BLOCK";
+							transmit_data_request.method = TRANSMIT_PARITY_BLOCK_REQUEST;
 							sprintf(fname, "%s\\%s_m%0*d%s", curdir, s1, md, i - k + 1, s2);
 						}
 						//Use pure object name
