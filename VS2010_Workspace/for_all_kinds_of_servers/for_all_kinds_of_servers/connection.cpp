@@ -376,7 +376,7 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 					int forcin = 0;
 
 					//Receive the ultimate ack from the target node, which means the update content and delta content are all in place
-					//Then launch the construct request
+					//Then launch the reconstruct request
 					if (response_string.find(UPDATE_DONE_STATUS) < NO_SUCH_SUBSTRING)
 					{
 						//Connect those guys
@@ -394,15 +394,17 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 							tcp::endpoint end_p(boost::asio::ip::address_v4::from_string("127.0.0.1"), next_target_server);
 							ec_socket.at(i - 1)->connect(end_p);
 
-							request transmit_data_request;
+							request recon_request;
 							
-							//Use the pure object name to construct the request
-							transmit_data_request.content_length /= ERASURE_CODE_K;
-							transmit_data_request.obj_id = pure_obj_name;
-							transmit_data_request.data_type = types[i];
-							transmit_data_request.server_id = server_id;
+							//Use the info from the newest version: client, request timestamp, 
+							recon_request.method = RECONSTRUCT_REQUEST;
+							recon_request.obj_id = pure_obj_name;
+							recon_request.server_id = newest_version.target_server_id;
+							recon_request.client_id = newest_version.client_id;
+							recon_request.request_timestamp = newest_version.request_timestamp;
 
-							boost::asio::write(*(ec_socket.at(i - 1)), transmit_data_request.to_buffers());		
+							boost::system::error_code err_code;
+							boost::asio::write(*(ec_socket.at(i - 1)), recon_request.header_to_buffers(), err_code);		
 						}
 					}
 
@@ -620,7 +622,7 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 					boost::system::error_code err_code_done;
 					reply_.server_status = POST_DONE_STATUS;
 					boost::asio::write(socket_, reply_.simple_ready_buffers(), err_code_done);
-					handle_write(err_code);
+					handle_write(err_code_done);
 				}
 				catch (exception& e)
 				{
@@ -628,6 +630,47 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 				} 
 			}
 #pragma endregion post_request
+
+#pragma region reconstruct_request
+			if (request_.method == RECONSTRUCT_REQUEST)
+			{
+				string pure_obj_name = extract_pure_obj_name(request_.obj_id);
+				map<string, metadata>::iterator it = server::obj_meta_table.find(pure_obj_name);
+				if (it!= server::obj_meta_table.end())
+				{
+					//If this server is exactly the target server of this request, sth should be different.
+					string full_local_path = return_full_path(pure_obj_name);
+					boost::system::error_code ec;
+					file_.assign(::CreateFile(full_local_path.c_str(), GENERIC_READ, FILE_SHARE_READ, 0,
+						OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, 0), ec);
+					if (file_.is_open())
+					{
+						print_info(request_.client_id, request_.method, pure_obj_name, "Open done!Now transmitting to client....");
+						transmit_file(socket_, file_, boost::bind(&connection::handle_write, this, boost::asio::placeholders::error));
+					}
+					else
+					{
+						print_info(request_.client_id, request_.method, pure_obj_name, "Error occurs when opening the file!");
+						handle_write(ec);
+						return;
+					}
+				}
+
+				else
+				{
+					//If,obj could not be found, also return a special reply
+					//Giving the name "object_not_found"
+					//Just for the close of connection
+
+					cout << "Object not found: " << request_.obj_id << endl;
+
+					boost::system::error_code err_code_done;
+					reply_.server_status = OBJECT_NOT_FOUND_STATUS;
+					boost::asio::write(socket_, reply_.simple_ready_buffers(), err_code_done);
+					handle_write(err_code_done);
+				}
+			}
+#pragma endregion reconstruct_request
 		}
 	}
 

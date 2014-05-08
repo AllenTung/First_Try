@@ -92,6 +92,7 @@ typedef boost::shared_ptr<boost::asio::ip::tcp::socket> socket_ptr;
 #define POST_DONE_STATUS "post_done"
 #define UPDATE_DONE_STATUS "update_done"
 #define TRY_AGAIN_STATUS "try_again"
+#define OBJECT_NOT_FOUND_STATUS "object_not_found"
 
 
 extern vector<string> split(string& str,const char* c);
