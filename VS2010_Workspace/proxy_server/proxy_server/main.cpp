@@ -21,8 +21,11 @@ int main()
 {
 	int forcin = 0, argc = 4;
 
-// 
-// #pragma region test_zone
+#pragma region test_zone
+// 	char* testhash="www.txt";
+// 	for(int i = 0; i < 100; i++)
+// 		cout << get_hash_value(testhash) << endl;
+// 	cin >> forcin;
 // 	char* temp_int = "2222";
 // 	unsigned int result1 = strtoul(temp_int, NULL, 0);
 // 	cout << result1 << endl;
@@ -124,7 +127,7 @@ int main()
 // // 	}  
 // // 
 // // 	cin >> forcin;
-// #pragma endregion test_zone
+#pragma endregion test_zone
 
 
 #pragma region config_init

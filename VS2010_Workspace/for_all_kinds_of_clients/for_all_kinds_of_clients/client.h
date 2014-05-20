@@ -5,6 +5,8 @@
 #include <string>
 #include <boost/asio.hpp>
 #include <vector>
+#include <boost/thread.hpp>
+#include <boost/thread/mutex.hpp>
 #include <boost/noncopyable.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/enable_shared_from_this.hpp>
@@ -19,6 +21,9 @@ typedef boost::shared_ptr<boost::asio::io_service::work> work_ptr;
 class client
 {
 public:
+
+	static boost::mutex cout_lock;
+
 	//Use different socket to handle different linking in 
 	tcp::socket client_proxy_socket;
 	tcp::socket client_storage_server_socket;

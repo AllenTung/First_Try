@@ -15,6 +15,9 @@ metadata::metadata()
 	first_parity_location = 0;
 	second_parity_location = 0;
 
+	readins = 0;
+	buffer_size = 0;
+
 	version tmp_version;
 	history_record.push_back(tmp_version);
 }
@@ -27,6 +30,10 @@ metadata::metadata(unsigned int cont_length, Data_Type d_type, string client_id,
 	full_copy_location = full_copy_loc;
 	first_parity_location = first_parity_loc;
 	second_parity_location = second_parity_loc;
+
+	//Always set explicitly
+	readins = 0;
+	buffer_size = 0;
 
 	//如果是metadata第一次生成的时候，必定不是update操作，所以第一个版本不需要作target server的标示，或者直接如果读到-1就知道是这回事了
 	version tmp_version(client_id, request_timestamp, -1, c_or_d);

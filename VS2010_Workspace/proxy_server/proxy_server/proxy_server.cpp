@@ -19,6 +19,7 @@ proxy_server::proxy_server(const string& address, const string& port,
 	:io_pool(thread_num),
 	signals_(io_pool.get_io_service()),
 	acceptor_(io_pool.get_io_service()),
+	acceptor_2(io_pool.get_io_service()),
 	connection_manager_(),
 	new_connection_(),
 	request_handler_(doc_root, s_id)
@@ -36,13 +37,27 @@ proxy_server::proxy_server(const string& address, const string& port,
 
 	//open the acceptor with the option to reuse the address
 	tcp::resolver resolver(acceptor_.get_io_service());
+
+
+// 	
+// 
+// 	const string port2 = "666";
+// 
+// 	tcp::resolver::query query2(address, port2);
+// 	tcp::endpoint endpoint2 = *resolver.resolve(query2);
+// 	acceptor_2.open(endpoint2.protocol());
+// 	acceptor_2.set_option(tcp::acceptor::reuse_address(true));
+// 	acceptor_2.bind(endpoint2);
+// 	acceptor_2.listen();
+
 	tcp::resolver::query query(address, port);
 	tcp::endpoint endpoint = *resolver.resolve(query);
-
 	acceptor_.open(endpoint.protocol());
 	acceptor_.set_option(tcp::acceptor::reuse_address(true));
 	acceptor_.bind(endpoint);
 	acceptor_.listen();
+
+
 
 	cout << "proxy_server: " << proxy_server_id << " is running!" << endl;
 	start_accept(run_mode);
@@ -71,6 +86,7 @@ int proxy_server::choose_connection()
 void proxy_server::start_accept(string run_mode)
 {
 	new_connection_.reset(new connection(io_pool.get_io_service(), request_handler_, run_mode));
+	//acceptor_2.async_accept(new_connection_->socket_, boost::bind(&proxy_server::handle_accept, this, run_mode, boost::asio::placeholders::error));        
 	acceptor_.async_accept(new_connection_->socket_, boost::bind(&proxy_server::handle_accept, this, run_mode, boost::asio::placeholders::error));        
 }
 

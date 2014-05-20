@@ -17,6 +17,7 @@
 using namespace std;
 using boost::asio::ip::tcp;
 
+boost::mutex client::cout_lock;
 
 client::client(boost::asio::io_service& io_service, int client_id)
 	:client_proxy_socket(io_service), client_storage_server_socket(io_service), client_id(client_id), file_handler(io_service),target_port(777)
@@ -92,7 +93,9 @@ void client::launch_get_request(int thread_id)
 			{
 				if (tmp_count > 0)
 				{
+					client::cout_lock.lock();
 					print_info(int_to_string(client_id), "GET", req.uri, "This process finished successfully!");
+					client::cout_lock.unlock();
 				}
 				break;
 			}
@@ -114,7 +117,9 @@ void client::launch_get_request(int thread_id)
 	}
 	catch (exception& e)
 	{
+		client::cout_lock.lock();
 		print_info(int_to_string(client_id), "GET", req.uri, "This process finished successfully!");
+		client::cout_lock.unlock();
 	} 
 }
 void client::launch_update_request(int thread_id)
@@ -166,8 +171,8 @@ void client::launch_update_request(int thread_id)
 		boost::asio::socket_base::receive_buffer_size option(RECEIVE_BUFFER_SIZE);
 		client_storage_server_socket.set_option(option);
 
-		cout << "After connect!" << endl;
-		print_info(int_to_string(thread_id), req.method, extract_pure_obj_name(local_path), int_to_string(req.server_id));
+ 		cout << "After connect!" << req.server_id << endl;
+// 		print_info(int_to_string(thread_id), req.method, extract_pure_obj_name(local_path), int_to_string(req.server_id));
 
 		boost::system::error_code storage_prepare_err_code;
 		boost::asio::write(client_storage_server_socket, req.header_to_buffers(), storage_prepare_err_code);
@@ -197,15 +202,16 @@ void client::launch_update_request(int thread_id)
 		string ack_string;
 		ack_stream >> ack_string;
 
-		cout << "ack_string:" << ack_string << endl;
+/*		cout << "ack_string:" << ack_string << endl;*/
 
 		if (ack_string.find("update_done") < NO_SUCH_SUBSTRING)
 		{
 			boost::system::error_code ignored_ec;
 			client_storage_server_socket.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ignored_ec);
 			client_storage_server_socket.close();
-
-			print_info(int_to_string(thread_id), req.method, extract_pure_obj_name(local_path), "Update Done !!!!!");			
+			client::cout_lock.lock();
+			print_info(int_to_string(thread_id), req.method, extract_pure_obj_name(local_path), "Update Done !!!!!");	
+			client::cout_lock.unlock();
 		}
 		else
 		{
@@ -215,8 +221,10 @@ void client::launch_update_request(int thread_id)
 	}
 	catch (exception& e)
 	{
+		client::cout_lock.lock();
 		print_info(int_to_string(client_id), "POST", req.uri, "Exception Occurs!");
 		cout << "Exception :" << e.what() << endl;
+		client::cout_lock.unlock();
 	}
 }
 void client::launch_post_request(int thread_id)
@@ -280,14 +288,21 @@ void client::launch_post_request(int thread_id)
 
 			if (file_handler.is_open())
 			{
+				client::cout_lock.lock();
 				print_info(int_to_string(client_id), "POST", req.obj_id, "Open done!Now transmitting to server....");
+				client::cout_lock.unlock();
 				transmit_file(client_storage_server_socket, file_handler, boost::bind(&client::handle_write, this, req.obj_id, boost::asio::placeholders::error));
+			
 			}
 
 			else
 			{
+				client::cout_lock.lock();
+				
 				print_info(int_to_string(client_id), "POST", req.obj_id, "Error occurs when opening the file!");
+
 				cout << ec.message() << endl;
+client::cout_lock.unlock();
 				return;
 			}
 		}
@@ -300,8 +315,6 @@ void client::launch_post_request(int thread_id)
 			client_storage_server_socket.close();
 		}
 
-		cout << "After the tramsmit and wait for the ack !" << endl;
-
 
 		//Wait for ACK and then close the socket and end this journey
 		boost::asio::streambuf response_ack;
@@ -311,34 +324,44 @@ void client::launch_post_request(int thread_id)
 		ack_stream >> ack_string;
 		if (ack_string.find("post_done") < NO_SUCH_SUBSTRING)
 		{
-			cout << "Confirmed that the server has done its job !!!! post done !!!" << endl;
+			client::cout_lock.lock();
+			
+			print_info(int_to_string(client_id), "POST", req.obj_id, "Post Done !!!!");
+			client::cout_lock.unlock();
 			boost::system::error_code ignored_ec;
 			client_storage_server_socket.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ignored_ec);
 			client_storage_server_socket.close();
 		}
 		else
 		{
+			client::cout_lock.lock();
+			
 			cout << "No ACK from the server !" << endl;
+			client::cout_lock.unlock();
 		}
 #pragma endregion storage_phase		
 	}
 	catch (exception& e)
 	{
+		client::cout_lock.lock();
+		
 		print_info(int_to_string(client_id), "POST", req.obj_id, "Exception Occurs!");
 		cout << "Exception :" << e.what() << endl;
+		client::cout_lock.unlock();
 	}
 }
 
 void client::launch_client(int request_type, int thread_id)
 {
-	if(request_type == 2)
-	{
-		launch_post_request(thread_id);
-		return;
-	}
-	else if (request_type == 1)
+
+	if (request_type == 1)
 	{
 		launch_get_request(thread_id);
+		return;
+	}
+	else if(request_type == 2)
+	{
+		launch_post_request(thread_id);
 		return;
 	}
 	else if (request_type == 3)
@@ -352,11 +375,11 @@ void client::handle_write(string uri, const boost::system::error_code& e)
 {
 	if (!e)
 	{
-		print_info(int_to_string(client_id), "POST", uri, e.message());
+		//print_info(int_to_string(client_id), "POST", uri, e.message());
 	}
 	else
 	{
-		print_info(int_to_string(client_id), "POST", uri, "In handle_write and no error_code!");
+		//print_info(int_to_string(client_id), "POST", uri, "In handle_write and no error_code!");
 	}
 // 	boost::system::error_code ignored_ec;
 // 	client_storage_server_socket.shutdown(boost::asio::ip::tcp::socket::shutdown_both, ignored_ec);

@@ -39,7 +39,8 @@ void connection::reset_all()
 int connection::target_server_location(string obj_id)
 {
 	//Using consistent-hashing structure to organize the cluster
-	return get_hash_value(const_cast<char*>(obj_id.c_str()));
+	int located_server = STARTING_SERVER_ID + get_hash_value(const_cast<char*>(obj_id.c_str()));
+	return located_server;
 }
 
 
@@ -50,7 +51,7 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 		boost::tribool result;
 		//Parse the request_buffer received to request object
 		result = request_parser_.simple_parse(request_, buffer_);
-
+		cout << socket_.remote_endpoint().port() << endl;
 		if (result)
 		{
 			if (request_.method == "GET")
@@ -59,7 +60,7 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 				{
 					reply_.server_id = target_server_location(request_.obj_id);
 					if(mode == "test")
-						reply_.server_id = 888;
+						reply_.server_id = STARTING_SERVER_ID;
 					boost::system::error_code err_code;
 					boost::asio::write(socket_, reply_.simple_location_buffers(), err_code);
 					handle_write(err_code);
@@ -71,11 +72,12 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 			}			
 			else if (request_.method == "POST")
 			{
+				cout << "POST received !" << endl;
 				try
 				{
 					reply_.server_id = target_server_location(request_.obj_id);
 					if(mode == "test")
-						reply_.server_id = 888;
+						reply_.server_id = STARTING_SERVER_ID;
 					boost::system::error_code err_code;
 					boost::asio::write(socket_, reply_.simple_location_buffers(), err_code);
 					handle_write(err_code);
@@ -95,7 +97,7 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 					int starting_id = target_server_location(request_.obj_id);
 					if(mode == "test")
 					{
-						starting_id = 888;
+						starting_id = STARTING_SERVER_ID;
 					}
 					reply_.server_id = starting_id + request_.update_offset / (request_.content_length / ERASURE_CODE_K) + 1;
 

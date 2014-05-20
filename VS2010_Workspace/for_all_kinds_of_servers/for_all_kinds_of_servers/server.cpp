@@ -14,19 +14,25 @@
 using namespace std;
 using boost::asio::ip::tcp;
 
-server::server(const string& address, const string& port,
+boost::mutex server::cout_lock;
+boost::mutex server::file_lock;
+boost::mutex server::table_lock;
+boost::mutex server::con_deque_lock;
+boost::mutex server::ec_port_lock;
+
+server::server(string address, string port,
 	const string& doc_root, int thread_num, int s_id)
 	:io_pool(thread_num),
 	signals_(io_pool.get_io_service()),
 	acceptor_(io_pool.get_io_service()),
+	inner_acceptor_(io_pool.get_io_service()),
 	connection_manager_(),
 	new_connection_(),
 	request_handler_(doc_root, s_id)
 {
-	//注册以便去操作那个提示server什么时候该退出的信号
-	//在同一个程序里面多次注册同一个信号是安全的，只要是通过asio来搞的
 	server_id = s_id;
-
+	local_ip = address;
+	inner_server_id = server_id + 1000;
 	signals_.add(SIGINT);
 	signals_.add(SIGTERM);
 #if defined(SIGQUIT)
@@ -36,15 +42,23 @@ server::server(const string& address, const string& port,
 
 	//open the acceptor with the option to reuse the address
 	tcp::resolver resolver(acceptor_.get_io_service());
-	tcp::resolver::query query(address, port);
+	tcp::resolver::query query(address.c_str(), port.c_str());
 	tcp::endpoint endpoint = *resolver.resolve(query);
-
 	acceptor_.open(endpoint.protocol());
 	acceptor_.set_option(tcp::acceptor::reuse_address(true));
 	acceptor_.bind(endpoint);
 	acceptor_.listen();
 
-	cout << "server: " << server_id << " is running!" << endl;
+// 	tcp::resolver inner_resolver(inner_acceptor_.get_io_service());
+// 	const string inner_port = int_to_string(inner_server_id).c_str();
+// 	tcp::resolver::query inner_query(address, inner_port);
+// 	tcp::endpoint inner_endpoint = *inner_resolver.resolve(inner_query);
+// 	inner_acceptor_.open(inner_endpoint.protocol());
+// 	inner_acceptor_.set_option(tcp::acceptor::reuse_address(true));
+// 	inner_acceptor_.bind(inner_endpoint);
+// 	inner_acceptor_.listen();
+
+	cout << "Server: " << local_ip << " :" << server_id << " is running!" << endl;
 	start_accept();
 }
 void server::run()
@@ -72,7 +86,7 @@ void server::handle_accept(connection_ptr& current_connection, boost::system::er
 {
 	if (!e)
 	{
-		cout << "Begin to handle one request !" << endl;
+		cout << "NEW REQUEST dealed by the port: " << current_connection->socket_.local_endpoint() << endl;
 		current_connection->start();
 	}
 	start_accept();
@@ -107,14 +121,17 @@ void server::start_accept()
 // #pragma endregion reset_conn_method
 
 #pragma region soly_create_conn
-	connection_ptr  new_conn(new connection(io_pool.get_io_service(), request_handler_, server_id));
+	connection_ptr  new_conn(new connection(io_pool.get_io_service(), request_handler_, server_id, local_ip));
 	connection_pool.push_back(new_conn);
-	int conn_count =  connection_pool.size();
-	//For the surveillance of the size of connection_pool
-	cout << "\n*************************\n" << conn_count << "\n*************************\n";
 
-	/*	new_connection_.reset(new connection(io_pool.get_io_service(), request_handler_, server_id));*/
+	/* Eliminate those used connections */
+// 	if(connection_pool.front()->busy == 0)
+// 	{
+// 		connection_pool.pop_front();
+// 	}	
+
 	acceptor_.async_accept(new_conn->socket_, boost::bind(&server::handle_accept, this, new_conn, err_code));
+/*	inner_acceptor_.async_accept(new_conn->socket_, boost::bind(&server::handle_accept, this, new_conn, err_code));*/
 #pragma endregion soly_create_conn
 
 }

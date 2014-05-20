@@ -13,10 +13,12 @@ using boost::asio::ip::tcp;
 
 class server;
 
-connection::connection(boost::asio::io_service& io_service, request_handler& handler, int s_id)
+connection::connection(boost::asio::io_service& io_service, request_handler& handler, int s_id, string l_ip)
 	:socket_(io_service),ec_io_service(ERASURE_CODE_K+ERASURE_CODE_M), request_handler_(handler),file_(io_service),encoder_(),decoder_()
 {
 	server_id = s_id;
+	local_ip = l_ip;
+	inner_server_id = server_id + 1000;
 	busy = 1;
 	for (int i = 0; i < ERASURE_CODE_K + ERASURE_CODE_M; i++)
 	{
@@ -55,24 +57,42 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 
 		if (result)
 		{
-			//这里要分开处理，分别添加handle_get_request，即原来的handle_get_request，
-			//然后要有handle_post_request，用来处理用户发来的POST请求也就是上传文件
-			//然后要有handle_update_request, 用来处理用户发来的update请求也就是从指定的offset开始写入部分内容
+			if ((int)(socket_.local_endpoint().port() == server_id))
+			{
 
+			}
+			server::cout_lock.lock();
+			print_info(request_.client_id, request_.method, request_.obj_id, "New Request is coming !!!!!!!!!!!!!!!!");
+			server::cout_lock.unlock();
 #pragma region get_request
 
 			if (request_.method == GET_REQUEST)
 			{
 				string pure_obj_name = extract_pure_obj_name(request_.obj_id);
+				string full_local_path = return_full_path(pure_obj_name);
+
+				server::table_lock.lock();
 				map<string, metadata>::iterator it = server::obj_meta_table.find(pure_obj_name);
 				if (it!= server::obj_meta_table.end())
 				{
-					cout << "***************   File found !!!!!!  ****************** " << endl;
+					server::table_lock.unlock();
+					if (!test_existence(full_local_path))
+					{
+						/************************************************************************/
+						/* The most probable read-miss situation ---- simple master node reply failure
+						   We could stimulate faked failure signal to make things happen        */
+						/************************************************************************/
 
-					string full_local_path = return_full_path(pure_obj_name);
+						int temp_status = decoder_.decode_file(ec_io_service, ec_socket, request_, server_id, local_ip, pure_obj_name, it->second.content_length, it->second.full_copy_location, 0);
+						/* Just assume that it has to be done, and return it to client */
+					}
+					string locking_file = get_locking_file_path(full_local_path);
+					boost::interprocess::file_lock temp_lock(locking_file.c_str());
+					temp_lock.lock();
 					boost::system::error_code ec;
 					file_.assign(::CreateFile(full_local_path.c_str(), GENERIC_READ, FILE_SHARE_READ, 0,
 						OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, 0), ec);
+					temp_lock.unlock();
 					if (file_.is_open())
 					{
 						print_info(request_.client_id, request_.method, pure_obj_name, "Open done!Now transmitting to client....");
@@ -82,14 +102,13 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 					{
 						print_info(request_.client_id, request_.method, pure_obj_name, "Error occurs when opening the file!");
 						handle_write(ec);
-						return;
 					}
 				}
 
 				else
 				{
 					//Object doesn't exist, quit
-					cout << pure_obj_name << " DOSEN'T EXIST !!!!" << endl;
+					cout << pure_obj_name << " DOSEN'T EXIST IN METADATA TABLE!!!!" << endl;
 					boost::system::error_code ec;
 					handle_write(ec);
 				}
@@ -126,39 +145,54 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 				int done = -1;
 				try
 				{
-					
+
+					server::table_lock.lock();
 					map<string, metadata>::iterator obj_it = server::obj_meta_table.find(pure_obj_name);
 					if (obj_it != server::obj_meta_table.end())
 					{
+						server::table_lock.unlock();
 						vector<Data_Type> data_type_vector(types, types + ERASURE_CODE_K + ERASURE_CODE_M + 1);
 						vector<Data_Type>::iterator data_it = find(data_type_vector.begin(), data_type_vector.end(), obj_it->second.data_type);
+
+						/* The segment is unavailable ,reconstruct it before updating, and we assume it always works ! */
+						string l_file = get_locking_file_path(full_local_path);
+						boost::interprocess::file_lock tmp_lock(l_file.c_str());
+						tmp_lock.lock();
+						if (!test_existence(full_local_path))
+						{
+							cout << full_local_path << "Doesn't exist ! Decodng is on the way !" << endl; 
+							int temp_status = decoder_.decode_file(ec_io_service, ec_socket, request_, server_id, local_ip, pure_obj_name, obj_it->second.content_length, obj_it->second.full_copy_location, *data_it);
+						}
 						unsigned int real_offset = request_.update_offset - ((*data_it) - 1) * (obj_it->second.content_length);
 
 						done = update_file(full_local_path, update_content, real_offset, 0);
+						cout << full_local_path << " :Update operation status: " << done << endl;
+						tmp_lock.unlock();
 					}
 
 					if (done == 1)
 					{
-						//Just for the close of connection
-						boost::system::error_code err_code_done;
-						reply_.server_status = UPDATE_DONE_STATUS;
-						boost::asio::write(socket_, reply_.simple_ready_buffers(), err_code_done);
 
 						//Record the update client and according timestamp
+						server::table_lock.lock();
+						
 						map<string ,metadata>::iterator it = server::obj_meta_table.find(pure_obj_name);
 						if(it != server::obj_meta_table.end())
 						{
-							it->second.insert_new_record(request_.client_id, request_.request_timestamp, server_id, false);
+							it->second.insert_new_record(request_.client_id, request_.request_timestamp, server_id, true);
 						}
-
+						server::table_lock.unlock();
 						//Next,send the delta-update part to server holding the parity block, and a heads-up to the master node
 						//Hence the total number of request is M+1
 
 						int enough_for_rec = 0;
 
+						cout << "Connecting the related nodes to process whole update." << endl;
+						server::ec_port_lock.lock();
+						int temp_ec_port = get_random_ec_port(server_id);
+						server::ec_port_lock.unlock();
 						for (int i = 1; i <= ERASURE_CODE_M + 1 ; i++)
 						{
-
 							//Connect the next targeted server and send a transmit_update_content or transmit_delta_content request
 							int next_target_server = -1;
 							if(i == 1)
@@ -174,25 +208,44 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 								next_target_server = it->second.second_parity_location;
 							}
 
-							tcp::endpoint end_p(boost::asio::ip::address_v4::from_string("127.0.0.1"), next_target_server);
-							ec_socket.at(i - 1)->connect(end_p);
+							string remote_ip = "";
+							map<string, string>::iterator temp_it = server::ip_port_table.find(int_to_string(next_target_server));
+							if (temp_it != server::ip_port_table.end())
+							{
+								remote_ip = temp_it->second;
+							}
+							tcp::endpoint remote_end_point(boost::asio::ip::address_v4::from_string(remote_ip.c_str()), next_target_server);
+							tcp::endpoint local_end_point(boost::asio::ip::address_v4::from_string(local_ip.c_str()), temp_ec_port);
+							ec_socket.at(i - 1)->open(local_end_point.protocol());
+							ec_socket.at(i - 1)->set_option(boost::asio::ip::tcp::socket::reuse_address(true));
+							ec_socket.at(i - 1)->bind(local_end_point);
+							ec_socket.at(i - 1)->connect(remote_end_point);
 
 							request transmit_data_request(request_);
+							//This is used to inform parity and master node the original target node of this update operation
+							transmit_data_request.server_id = server_id;
+							transmit_data_request.obj_id = pure_obj_name;
+							transmit_data_request.content = update_content;
 
-							//Set obj_id directly to pure form.
-							transmit_data_request.method = TRANSMIT_UPDATE_CONTENT_REQUEST;
+							/*Set obj_id directly to pure form.
+							  Watch out for this: in the request send to the master node , content length is 
+							  set to the data block length which is sizeof(object)/K, while update content's length
+							  in the request to the parity node for the delta's sake */ 
+							if (i == 1)
+							{
+								transmit_data_request.method = TRANSMIT_UPDATE_CONTENT_REQUEST;
+								transmit_data_request.content_length = it->second.content_length;
+							}
+							
 							if (i > 1)
 							{
 								transmit_data_request.method = TRANSMIT_DELTA_CONTENT_REQUEST;
+								transmit_data_request.content_length = update_content.length();
 							}
-							
-							transmit_data_request.content_length = update_content.length();
-							transmit_data_request.obj_id = pure_obj_name;
 
-							//This is used to inform parity and master node the original target node of this update operation
-							transmit_data_request.server_id = server_id;
 
-							boost::asio::write(*(ec_socket.at(i - 1)), transmit_data_request.header_to_buffers());	
+							boost::system::error_code tmp_error_code;
+							boost::asio::write(*(ec_socket.at(i - 1)), transmit_data_request.header_to_buffers(), tmp_error_code);	
 
 							//Confirm the ready_for_update and send again if no confirmation is found
 							for(;;)
@@ -217,8 +270,7 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 									cout << "Server: " << next_target_server << "is somehow blocked !!!!!" << endl;
 									cout << "***************************************" << endl;
 
-									boost::asio::write(*(ec_socket.at(i - 1)), transmit_data_request.header_to_buffers());	
-
+									boost::asio::write(*(ec_socket.at(i - 1)), transmit_data_request.header_to_buffers(), tmp_error_code);	
 								}
 							}
 
@@ -237,6 +289,8 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 
 								if (ack_string.find(UPDATE_DONE_STATUS) < NO_SUCH_SUBSTRING)
 								{
+									cout << "**************Update Done ACK Once !**************" << endl;
+
 									boost::system::error_code ignored_ec;
 									ec_socket.at(i - 1)->shutdown(boost::asio::ip::tcp::socket::shutdown_both, ignored_ec);
 									ec_socket.at(i - 1)->close();
@@ -246,7 +300,7 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 								}
 								else
 								{
-									cout << "No ACK from the server !" << endl;
+									cout << "No ACK from the server : " << next_target_server << "!!!!!!!!!" << endl;
 								}
 							}
 
@@ -255,11 +309,16 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 							//reconstruct request, to all accountable nodes.
 							if (enough_for_rec >= ERASURE_CODE_M)
 							{
+								cout << "Enough ACK to inform the master node to move further !" << endl;
+								/* Inform the client the completeness of update operation , watch for the timing */
 								boost::system::error_code err_code_done;
 								reply_.server_status = UPDATE_DONE_STATUS;
+								boost::asio::write(socket_, reply_.simple_ready_buffers(), err_code_done);
 								boost::asio::write(*(ec_socket.at(0)), reply_.simple_ready_buffers(), err_code_done);
-							}
 
+								/* This connection has to be shut for the sake of the reversal visit */
+								break;
+							}
 
 						}
 						after_ec = 1;						
@@ -268,6 +327,7 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 					else 
 					{
 						cout << "Error occurs when update the file : " << pure_obj_name << endl;
+						handle_write(err_code);
 					}
 
 				}
@@ -303,6 +363,7 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 				
 				try
 				{
+					/*For now ,no lock is needed ,cause this could imitate the logging update of parity node*/
 					int forcin = 0;
 					ofstream output_for_trans(full_local_path.c_str(), ios::app | ios::binary);
 					output_for_trans.write(update_content.c_str(), update_content.length());
@@ -312,14 +373,16 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 					cout << "Post finished , about to update the record!" << endl;
 					
 					//Update the record
-
+					server::table_lock.lock();
+					
 					map<string ,metadata>::iterator it = server::obj_meta_table.find(pure_obj_name);
 					if(it != server::obj_meta_table.end())
 					{
 						//First it's dirty, only when the master node inform of the finish of recon. , it turns clean
 						it->second.insert_new_record(request_.client_id, request_.request_timestamp, request_.server_id, false);
+						cout << "Insertion of new record done !" << endl;
 					}
-					
+					server::table_lock.unlock();
 					//Just for the close of connection
 					boost::system::error_code err_code_done;
 					reply_.server_status = UPDATE_DONE_STATUS;
@@ -349,74 +412,96 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 				//Finally, it calls for a request of reconstruction, which is "RECONSTRUCT"
 
 
-
 				//For now, client_id and request_timestamp are simply used for id the newest version
 				//Cause one client is not able to launch mutiple update to the same object without confirming the last one
 				string pure_obj_name = extract_pure_obj_name(request_.obj_id);
 				string full_local_path = return_update_path(pure_obj_name);
-
-				version newest_version(request_.client_id, request_.request_timestamp, request_.server_id, false);
-
-				boost::system::error_code err_code;
-				reply_.server_status = READY_FOR_UPDATE_STATUS;
-				boost::asio::write(socket_, reply_.simple_ready_buffers(), err_code);
-
-				boost::asio::socket_base::receive_buffer_size option(RECEIVE_BUFFER_SIZE);
-				socket_.set_option(option);
-
-				//Wait for the target node to send ultimate ack
-				boost::asio::streambuf response_buf;
-				boost::asio::read_until(socket_, response_buf, "\r\n");
-				istream response_stream(&response_buf);
-				string response_string;
-				response_stream >> response_string;
-
-				try
+				server::table_lock.lock();
+				
+				map<string, metadata>::iterator it = server::obj_meta_table.find(pure_obj_name);
+				if (it != server::obj_meta_table.end())
 				{
-					int forcin = 0;
+					unsigned int tmp_content_length = it->second.content_length;
+					int tmp_master_node = it->second.full_copy_location;
+					server::table_lock.unlock();
+					version newest_version(request_.client_id, request_.request_timestamp, request_.server_id, false);
 
-					//Receive the ultimate ack from the target node, which means the update content and delta content are all in place
-					//Then launch the reconstruct request
-					if (response_string.find(UPDATE_DONE_STATUS) < NO_SUCH_SUBSTRING)
+					boost::system::error_code err_code;
+					reply_.server_status = READY_FOR_UPDATE_STATUS;
+					boost::asio::write(socket_, reply_.simple_ready_buffers(), err_code);
+
+					boost::asio::socket_base::receive_buffer_size option(RECEIVE_BUFFER_SIZE);
+					socket_.set_option(option);
+
+					//Wait for the target node to send ultimate ack
+					boost::asio::streambuf response_buf;
+					boost::asio::read_until(socket_, response_buf, "\r\n");
+					istream response_stream(&response_buf);
+					string response_string;
+					response_stream >> response_string;
+
+					try
 					{
-						//Connect those guys
-						for (int i = 1; i <= ERASURE_CODE_K + ERASURE_CODE_M ; i++)
+						//Receive the ultimate ack from the target node, which means the update content and delta content are all in place
+						//Then launch the reconstruct request
+						if (response_string.find(UPDATE_DONE_STATUS) < NO_SUCH_SUBSTRING)
 						{
-
-							//Connect the next targeted server and send a transmit_data request
-							int next_target_server = server_id + i;
-							// Round circle calculation
-							if (next_target_server > STARTING_SERVER_ID + NUMBER_OF_SERVER - 1)
-							{
-								next_target_server -= NUMBER_OF_SERVER;
-							}
-
-							tcp::endpoint end_p(boost::asio::ip::address_v4::from_string("127.0.0.1"), next_target_server);
-							ec_socket.at(i - 1)->connect(end_p);
-
-							request recon_request;
+							//Connect those guys and leave the decoder to decide it's a normal one or a light-weight one reconstruction
+							//And the last 0 stands for the whole new file should be created, not just one block
+							cout << "Receive the update content and now trigger the decoding instruction !" << endl;
+							int temp_status = decoder_.decode_file(ec_io_service, ec_socket, request_, server_id, local_ip, pure_obj_name, tmp_content_length, tmp_master_node, 0);
 							
-							//Use the info from the newest version: client, request timestamp, 
-							recon_request.method = RECONSTRUCT_REQUEST;
-							recon_request.obj_id = pure_obj_name;
-							recon_request.server_id = newest_version.target_server_id;
-							recon_request.client_id = newest_version.client_id;
-							recon_request.request_timestamp = newest_version.request_timestamp;
+							if (temp_status == 0)
+							{
 
-							boost::system::error_code err_code;
-							boost::asio::write(*(ec_socket.at(i - 1)), recon_request.header_to_buffers(), err_code);		
+								cout << "Decoding went smoothly and now insert the newest versoin! " << endl;
+
+								/* All things went well and just finish the rest record update */
+								newest_version.clean = true;
+
+								server::table_lock.lock();
+								it->second.insert_new_record(newest_version);	
+								server::table_lock.unlock();
+
+// 								//Return the update done reply to make to counterpart object clean
+// 								boost::system::error_code err_code_done;
+// 								reply_.server_status = UPDATE_DONE_STATUS;
+// 								boost::asio::write(socket_, reply_.simple_ready_buffers(), err_code_done);
+
+								cout << "After notifying the original node, now everything is on place, end it !" << endl;
+								//Whenever the ec_scoket are used ,after_ec should be reset
+								after_ec = 1;
+								handle_write(err_code);
+							}
+							else if (temp_status == 1)
+							{
+								/* No sufficient ACK to complete the update , thus TOTAL RECONSTRUCT is needed */
+								/* As soon as the other nodes receive a TRANSMIT_DATA or TRANSMIT_PARITY, it first check
+								   the existence of such file according to the obj_id to make sure whether it's a first arrival 
+								   or a TOTAL_RECONSTRUCT */
+								int recorder[2] = {-1, -1};
+								cout << "Failed to decode the newest version, thus trigger the encoding instruction !" << endl;
+								int* mark = encoder_.encode_file(recorder, ec_io_service, ec_socket, request_, server_id, local_ip, pure_obj_name, full_local_path);
+								after_ec = 1;
+								/*metadata remains unchanged, just finish*/
+								handle_write(err_code);
+							}
+									
 						}
-					}
 
-					boost::system::error_code err_code_done;
-					reply_.server_status = UPDATE_DONE_STATUS;
-					boost::asio::write(socket_, reply_.simple_ready_buffers(), err_code_done);
-					handle_write(err_code);
+
+					}
+					catch (exception& e)
+					{
+						print_info(request_.client_id, request_.method, request_.obj_id, e.what());
+					} 
 				}
-				catch (exception& e)
+
+				else
 				{
-					print_info(request_.client_id, request_.method, request_.obj_id, e.what());
-				} 
+					/* Required object could not be found, remain unfinished */
+
+				}
 
 			}
 #pragma endregion transmit_update_content
@@ -445,8 +530,20 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 
 				try
 				{
-					int forcin = 0;
-					ofstream output_for_trans(full_local_path.c_str(), ios::app | ios::binary);
+					/* Identify the real purpose of the request */
+					if (test_existence(full_local_path))
+					{
+						request_.method = TOTAL_RECONSTRUCT_REQUEST;
+					}
+					/* This is the first transmit request from the master node ,thus locking file should be created */
+					if(request_.method != TOTAL_RECONSTRUCT_REQUEST)
+					{
+						creat_locking_file(full_local_path);
+					}
+					string locking_path = get_locking_file_path(full_local_path);
+					boost::interprocess::file_lock temp_lock(locking_path.c_str());
+					temp_lock.lock();
+					ofstream output_for_trans(full_local_path.c_str(), ios::out | ios::binary);
 					char* for_recv = new char[RECEIVE_BUFFER_SIZE];
 					int per_receive = 0;
 					int tmp_count = 0;
@@ -488,6 +585,7 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 
 					output_for_trans.close();
 					delete []for_recv;
+					temp_lock.unlock();					
 
 					//Insert record: and the id of full copy server is the "server_id" property coming along with  request
 
@@ -510,18 +608,35 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 
 					cout << "temp first: " << temp_first << endl << "temp_second: " << temp_second << endl;
 
-					pair<map<string, metadata>::iterator, bool> test_pair;
-					metadata obj_meta(request_.content_length, request_.data_type, request_.client_id, request_.request_timestamp, true, request_.server_id, temp_first, temp_second);
-					test_pair = server::obj_meta_table.insert(make_pair(pure_obj_name, obj_meta));
+					server::table_lock.lock();
+					if (request_.method != TOTAL_RECONSTRUCT_REQUEST)
+					{
+						pair<map<string, metadata>::iterator, bool> test_pair;
+						metadata obj_meta(request_.content_length, request_.data_type, request_.client_id, request_.request_timestamp, true, request_.server_id, temp_first, temp_second);
 
-					if(test_pair.second == true)
-					{
-						cout << "Successfully inserted the value :" << test_pair.first->first << "   Data type : " << request_.data_type << endl;
+						test_pair = server::obj_meta_table.insert(make_pair(pure_obj_name, obj_meta));
+
+						if(test_pair.second == true)
+						{
+							cout << "Successfully inserted the value :" << test_pair.first->first << "   Data type : " << request_.data_type << endl;
+						}
+						else 
+						{
+							cout << "Insertion failed!" << endl;
+						}
 					}
-					else 
+					else
 					{
-						cout << "Insertion failed!" << endl;
+						/* Clear out the history and insert the newest one
+						   Cause this is not update operation , set target_server_id to -1*/
+						map<string, metadata>::iterator it = server::obj_meta_table.find(pure_obj_name);
+						if (it!= server::obj_meta_table.end())
+						{
+							it->second.history_record.clear();
+							it->second.insert_new_record(request_.client_id, request_.request_timestamp, -1, true);
+						}
 					}
+					server::table_lock.unlock();
 
 					handle_write(err_code);
 				}
@@ -552,7 +667,7 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 				{
 					int forcin = 0;
 					ofstream output_for_trans(full_local_path.c_str(), ios::app | ios::binary);
-
+					//char* for_recv = (char*)malloc(sizeof(char)*512);
 					char* for_recv = new char[RECEIVE_BUFFER_SIZE];
 					unsigned int per_receive = 0;
 					unsigned int tmp_count = 0;
@@ -577,6 +692,7 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 					}
 					output_for_trans.close();
 					delete []for_recv;
+					creat_locking_file(full_local_path);
 
 					cout << "Post finished , about to insert the record!" << endl;
 
@@ -596,8 +712,22 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 
 					cout << endl << "temp_first:" << temp_first << endl << "temp_second:" << temp_second << endl;
 
+					/******************************************************
+					              Endoing process activated
+					*******************************************************/
+                    cout << "Now server : " << server_id << " begins to do the erasure coding part !" << endl;
+					int recorder[2] = {-1,-1};
+					int* mark = encoder_.encode_file(recorder, ec_io_service, ec_socket, request_, server_id, local_ip, pure_obj_name, full_local_path);
+					after_ec = 1;
+					cout << "Now behind the function of encode_file !" << endl;
+					
+					//Finally , insert the new record for the new comer
 					pair<map<string, metadata>::iterator, bool> test_pair;
 					metadata obj_meta(request_.content_length, full_copy, request_.client_id, request_.request_timestamp, true, server_id, temp_first, temp_second);
+					obj_meta.readins = *mark;
+					obj_meta.buffer_size = *(mark + 1);
+
+					server::table_lock.lock();
 					test_pair = server::obj_meta_table.insert(make_pair(pure_obj_name, obj_meta));
 
 					if(test_pair.second == true) 
@@ -608,16 +738,9 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 					{
 						cout << "Insertion failed!" << endl;
 					}
+					server::table_lock.unlock();
 
 
-					/******************************************************
-					              Endoing process activated
-					*******************************************************/
-                    cout << "Now server : " << server_id << " begins to do the erasure coding part !" << endl;
-					int ec_done = encoder_.encode_file(ec_io_service, ec_socket, request_, server_id, pure_obj_name, full_local_path);
-					after_ec = 1;
-					cout << "Now behind the function of encode_file !" << endl;
-					
 					//Just for the close of connection
 					boost::system::error_code err_code_done;
 					reply_.server_status = POST_DONE_STATUS;
@@ -635,40 +758,127 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 			if (request_.method == RECONSTRUCT_REQUEST)
 			{
 				string pure_obj_name = extract_pure_obj_name(request_.obj_id);
+				string full_local_path = return_full_path(pure_obj_name);
+
+				server::table_lock.lock();
 				map<string, metadata>::iterator it = server::obj_meta_table.find(pure_obj_name);
+
+				boost::system::error_code err_code_done;
 				if (it!= server::obj_meta_table.end())
 				{
-					//If this server is exactly the target server of this request, sth should be different.
-					string full_local_path = return_full_path(pure_obj_name);
-					boost::system::error_code ec;
-					file_.assign(::CreateFile(full_local_path.c_str(), GENERIC_READ, FILE_SHARE_READ, 0,
-						OPEN_ALWAYS, FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OVERLAPPED, 0), ec);
-					if (file_.is_open())
+					server::table_lock.unlock();
+					
+					if (test_existence(full_local_path))
 					{
-						print_info(request_.client_id, request_.method, pure_obj_name, "Open done!Now transmitting to client....");
-						transmit_file(socket_, file_, boost::bind(&connection::handle_write, this, boost::asio::placeholders::error));
+						print_info(request_.client_id, request_.method, pure_obj_name, "Ready for reconstruction and such file exists !");
+						reply_.server_status = READY_FOR_RECONSTRUCTION_STATUS;
+						boost::asio::write(socket_, reply_.simple_ready_buffers(), err_code_done);
+
+						/* Wait for the further instruction on whether it's a light-weight reconstruction or normal reconstruction 
+						If this server is exactly the target server of this request, sth should be different.*/
+						cout << "Waiting for next instruction to see what to do ...... " << endl;
+						boost::asio::streambuf tmp_response;
+						boost::asio::read_until(socket_, tmp_response, "\r\n");
+						istream response_stream(&tmp_response);
+						string response_string;
+						response_stream >> response_string;
+
+						cout << "This is order from the master node :" << response_string << endl;
+
+						if (response_string.find(CALL_FOR_LIGHT_WEIGHT_RECONSTRUCT_STATUS) < NO_SUCH_SUBSTRING)
+						{
+							/* Light weight reconstruction and simply transmit the according object back */
+							print_info(request_.client_id, request_.method, pure_obj_name, "Light weight reconstruction is on the way !!!!!!");
+							
+							unsigned int file_size = size_of_file(full_local_path);
+							string temp_locking_file = get_locking_file_path(full_local_path);
+							boost::interprocess::file_lock temp_lock(temp_locking_file.c_str());
+							temp_lock.lock();
+
+							char* for_sent = new char[RECEIVE_BUFFER_SIZE];
+							long left = (long)file_size;
+							FILE* temp_file = fopen(full_local_path.c_str(), "rb");
+
+							while (left >0)
+							{
+								fseek(temp_file, file_size - left, SEEK_SET);
+								boost::system::error_code err_code;
+								if (left >= RECEIVE_BUFFER_SIZE)
+								{
+									fread(for_sent, 1, RECEIVE_BUFFER_SIZE, temp_file);
+									boost::asio::write(socket_, boost::asio::buffer(for_sent, RECEIVE_BUFFER_SIZE), err_code);
+								}
+								else
+								{
+									fread(for_sent, 1, left, temp_file);
+									boost::asio::write(socket_, boost::asio::buffer(for_sent, left), err_code);
+								}
+
+								left -= (long)RECEIVE_BUFFER_SIZE;
+								cout << "Remain to be sent: " << left << endl;
+								
+							}
+							cout << "Transmission done for the reconstrucion request !" << endl;
+							fclose(temp_file);
+							delete[] for_sent;
+							temp_lock.unlock();
+							handle_write(err_code_done);
+						}
+						else if (response_string.find(CALL_FOR_NORMAL_RECONSTRUCT_STATUS) < NO_SUCH_SUBSTRING)
+						{
+							/* For now ,I really can't figure out the difference to handle these two requires */
+							unsigned int file_size = size_of_file(full_local_path);
+							string temp_locking_file = get_locking_file_path(full_local_path);
+							boost::interprocess::file_lock temp_lock(temp_locking_file.c_str());
+							temp_lock.lock();
+
+							char* for_sent = new char[RECEIVE_BUFFER_SIZE];
+							unsigned int left = file_size;
+							FILE* temp_file = fopen(full_local_path.c_str(), "rb");
+
+							while (left >0)
+							{
+								boost::system::error_code err_code;
+								if (left >= RECEIVE_BUFFER_SIZE)
+								{
+									fread(for_sent, 1, RECEIVE_BUFFER_SIZE, temp_file);
+									boost::asio::write(socket_, boost::asio::buffer(for_sent, RECEIVE_BUFFER_SIZE), err_code);
+								}
+								else
+								{
+									fread(for_sent, 1, left, temp_file);
+									boost::asio::write(socket_, boost::asio::buffer(for_sent, left), err_code);
+								}
+
+								left -= RECEIVE_BUFFER_SIZE;
+							}
+							delete[] for_sent;
+							fclose(temp_file);
+							temp_lock.unlock();
+							handle_write(err_code_done);
+							
+						}
+						else if(response_string.find(MISSION_ABORT_STATUS) < NO_SUCH_SUBSTRING)
+						{
+							/* Mostly because there's not a must for this node to anticipate in light-weight reconstruction */
+							cout << "No need for this node to be part of the reconstrution !" << endl;
+							handle_write(err_code_done);
+						}
 					}
 					else
 					{
-						print_info(request_.client_id, request_.method, pure_obj_name, "Error occurs when opening the file!");
-						handle_write(ec);
-						return;
+						//If,obj could not be found, also return a special reply
+						//Giving the name "object_not_found"
+						//Just for the close of connection
+						print_info(request_.client_id, request_.method, pure_obj_name, "Reconstruction request received but no such file !!!");
+
+						reply_.server_status = OBJECT_NOT_FOUND_STATUS;
+						boost::asio::write(socket_, reply_.simple_ready_buffers(), err_code_done);
+						handle_write(err_code_done);
 					}
+					
 				}
-
-				else
-				{
-					//If,obj could not be found, also return a special reply
-					//Giving the name "object_not_found"
-					//Just for the close of connection
-
-					cout << "Object not found: " << request_.obj_id << endl;
-
-					boost::system::error_code err_code_done;
-					reply_.server_status = OBJECT_NOT_FOUND_STATUS;
-					boost::asio::write(socket_, reply_.simple_ready_buffers(), err_code_done);
-					handle_write(err_code_done);
-				}
+				
 			}
 #pragma endregion reconstruct_request
 		}
@@ -676,10 +886,11 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 
 	else 
 	{       
+		boost::system::error_code err_code_done;
 		cout << "Not entered into the handle-read zone because of :" << e.message() << endl;
 		if (e.message().find(END_OF_FILE_EXCEPTION) < NO_SUCH_SUBSTRING)
 		{
-			boost::system::error_code err_code_done;
+			
 			reply_.server_status = TRY_AGAIN_STATUS;
 			boost::asio::write(socket_, reply_.simple_ready_buffers(), err_code_done);
 			start();
@@ -687,6 +898,8 @@ void connection::handle_read(const boost::system::error_code& e, size_t bytes_tr
 		else
 		{
 			//Do something
+			cout << "Enter the don't-know-what-to-do zone ..... " << endl;
+			handle_write(err_code_done);
 		}
 	}
 }
@@ -721,6 +934,7 @@ void connection::handle_write(const boost::system::error_code& e)
 	}
 
 	cout << "At the end of this server's handle_write !" << endl;
+
 	//Reset the overall status to busy
 	busy = 0;
 }

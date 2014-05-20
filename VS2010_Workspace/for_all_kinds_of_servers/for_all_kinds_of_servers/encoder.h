@@ -34,7 +34,7 @@ extern "C"
 using namespace std;
 using boost::asio::ip::tcp;
 
-
+class server;
 class encoder
 {
 public:
@@ -50,7 +50,7 @@ public:
 	
 	encoder();
 	int jfread(void *ptr, int size, int nmembers, FILE* stream);
-	int encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> ec_socket, request& ori_req, int server_id, string pure_obj_name, string full_local_path);
+	int* encode_file (int recorder[], ec_io_service_pool& ec_io_service, vector<socket_ptr> ec_socket, request& ori_req, int server_id, string local_ip, string pure_obj_name, string full_local_path);
 
 	//These two funtions are called when POST_REQUEST is done being handled at master node
 	void make_transmit_block_request(request ori_request);

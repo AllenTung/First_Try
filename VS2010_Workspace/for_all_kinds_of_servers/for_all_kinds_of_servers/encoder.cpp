@@ -1,9 +1,12 @@
+#pragma once
 #include "encoder.h"
-
+#include "server.hpp"
 #define talloc(type, num) (type *) malloc(sizeof(type)*(num))
 
 using namespace std;
 using boost::asio::ip::tcp;
+
+class server;
 
 encoder::encoder()
 {
@@ -11,7 +14,7 @@ encoder::encoder()
 	readins = 0;
 	n = 1;
 	ack_received = 0;
-
+	/* sizeof(char) == 1 */
 	unit_size = sizeof(char);
 }
 void encoder::gather_ack(const boost::system::error_code& e)
@@ -39,7 +42,7 @@ int encoder::jfread(void *ptr, int size, int nmembers, FILE *stream)
 	return size;
 }
 
-int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> ec_socket, request& ori_req, int server_id, string pure_obj_name, string full_local_path) 
+int* encoder::encode_file (int recorder[], ec_io_service_pool& ec_io_service, vector<socket_ptr> ec_socket, request& ori_req, int server_id, string local_ip, string pure_obj_name, string full_local_path) 
 {
 	//word_size,即系将一个文件，比如一个大文本，分成了很多个word，然后每个word是多大
 	//Packetsize, 必须是word的整数倍，这个encode时的单位
@@ -60,7 +63,7 @@ int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> 
 	int extra;
 	
 	
-	FILE *fp, *fp2;				// file pointers
+	FILE *fp;				// file pointers
 	char *block;				// padding file
 	int size, newsize;			// size of file and temp size 
 
@@ -100,9 +103,10 @@ int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> 
 	QueryPerformanceCounter(&t1);
 	totalsec = 0.0;
 
-	/* 通过向上向下取整来获得最佳的buffersize  */
 	if (buffersize != 0) 
 	{
+		/* unit_size * w * k * packetsize = 1 * 8 * 4 * 1024 = 32k
+		   According to current setting ,buffersize would remain at 32k, and blocksize 8k, thus it's ok to skip the trivialness of segmentation transmission*/
 		if (packetsize != 0 && buffersize%(unit_size*w*k*packetsize) != 0) 
 		{ 
 			up = buffersize;
@@ -151,23 +155,17 @@ int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> 
 	curdir = (char*)malloc(sizeof(char)*1000);	
 	_getcwd(curdir, 1000);
 
-	/* 这里以后要考虑并发操作的问题 ， 其他操作也在读或者有的操作在update的时候 */
-
 	fp = fopen(source_path, "rb");
 	if (fp == NULL) 
 	{
 		fprintf(stderr,  "Unable to open file.\n");
 		exit(0);
 	}
-	
-	/* Determine original size of file */
-	fseek(fp, 0, SEEK_END);
-	size = (long)ftell(fp);
-	fseek(fp, 0,SEEK_SET);
 
+	size = size_of_file(full_local_path);
 	newsize = size;
 
-	cout << "The size of the to-be-encoded file is : " << size << "B !!!!!!!!!!!!!!!!!!" << endl;
+	cout << "The size of the to-be-encoded file is : " << size << "B !" << endl;
 	
 	/* Find new size by determining next closest multiple */
 	if (packetsize != 0) 
@@ -283,15 +281,9 @@ int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> 
 
 	totalsec += (t4.QuadPart - t3.QuadPart) * 1.0 / tc.QuadPart;
 	total = 0;
-	//*************************************************************************
-	//这个while就是主模块，不断从一部分一部分地从源文件里面读出数据，然后每读出一部分，就encode一部分，然后将这部分数据写入k+m个不同的文件中
-	//**************************************************************************
-
-
-	//Ready for the coming transmit
-	//测试阶段先使得这些要接受数据块和校验快的server是一些端口递增的server进程
-	//先向每个server发出一个transmit_data或transmit_parity的请求，然后在下面的while循环的时候再不断地把数据传送到对应的server上
-
+	server::ec_port_lock.lock();
+	int temp_ec_port = get_random_ec_port(server_id);
+	server::ec_port_lock.unlock();
 	for (int i = 1; i <= k + m ; i++)
 	{
 
@@ -303,8 +295,18 @@ int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> 
 			next_target_server -= NUMBER_OF_SERVER;
 		}
 
-		tcp::endpoint end_p(boost::asio::ip::address_v4::from_string("127.0.0.1"), next_target_server);
-		ec_socket.at(i - 1)->connect(end_p);
+		string remote_ip = "";
+		map<string, string>::iterator temp_it = server::ip_port_table.find(int_to_string(next_target_server));
+		if (temp_it != server::ip_port_table.end())
+		{
+			remote_ip = temp_it->second;
+		}
+		tcp::endpoint remote_end_point(boost::asio::ip::address_v4::from_string(remote_ip.c_str()), next_target_server);
+		tcp::endpoint local_end_point(boost::asio::ip::address_v4::from_string(local_ip.c_str()), temp_ec_port);
+		ec_socket.at(i - 1)->open(local_end_point.protocol());
+		ec_socket.at(i - 1)->set_option(boost::asio::ip::tcp::socket::reuse_address(true));
+		ec_socket.at(i - 1)->bind(local_end_point);
+		ec_socket.at(i - 1)->connect(remote_end_point);
 
 		request transmit_data_request(ori_req);
 		if (i <= k)
@@ -325,6 +327,13 @@ int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> 
 
 		boost::asio::write(*(ec_socket.at(i - 1)), transmit_data_request.to_buffers());		
 	}
+
+	string temp_locking_file = get_locking_file_path(full_local_path);
+	boost::interprocess::file_lock temp_lock(temp_locking_file.c_str());
+	temp_lock.lock();
+	fp = fopen(source_path, "rb");
+
+#pragma region while_loop
 
 	while (n <= readins) 
 	{
@@ -449,21 +458,10 @@ int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> 
 		n++;
 		totalsec += (t4.QuadPart - t3.QuadPart) * 1.0 / tc.QuadPart;
 	}
-
-	/* 这里是生成一个meta文件，记录了所有的encoding过程中所用到的信息，但是这个东西不能光存一份在master
-	   可以考虑作为缓存存在proxy server端，也可以在每个相关的server上存一份，再看*/
-// 	if (fp != NULL) 
-// 	{
-// 		sprintf(fname, "%s\\%s_meta.txt", curdir, s1);
-// 		fp2 = fopen(fname, "wb");
-// 		fprintf(fp2, "%s\n", source_path);
-// 		fprintf(fp2, "%d\n", size);
-// 		fprintf(fp2, "%d %d %d %d %d %d\n", k, m, w, packetsize, buffersize, readins);
-// 		fclose(fp2);
-// 	}
+#pragma endregion while_loop
 
 	fclose(fp);
-
+	temp_lock.unlock();
 
 	/* Free allocated memory */
 	free(s2);
@@ -480,7 +478,10 @@ int encoder::encode_file (ec_io_service_pool& ec_io_service, vector<socket_ptr> 
 
 // 	printf("Encoding (MB/sec): %0.10f\n", (size/1024/1024)/(totalsec));
 // 	printf("En_Total (MB/sec): %0.10f\n", (size/1024/1024)/(tsec));
-	return 0;
+	/* recorder: readins, buffersize*/
+	recorder[0] = readins;
+	recorder[1] = buffersize;
+	return recorder;
 }
 
 void encoder::handle_write(const boost::system::error_code& e)

@@ -4,10 +4,18 @@
 #include <vector>
 #include <map>
 #include <algorithm>
+#include <deque>
 #include <boost/asio.hpp>
 #include <boost/bind.hpp>
 #include <boost/array.hpp>
 #include <boost/shared_ptr.hpp>
+#include <boost/thread.hpp>
+#include <boost/thread/mutex.hpp>
+#include <boost/interprocess/sync/file_lock.hpp>
+#include <boost/interprocess/sync/sharable_lock.hpp>
+#include <boost/interprocess/sync/scoped_lock.hpp>
+#include <boost/interprocess/sync/upgradable_lock.hpp>
+#include <boost/asio/windows/random_access_handle.hpp>
 #include <string>
 #include "server.hpp"
 #include "common.hpp"
@@ -17,16 +25,88 @@
 #include <Windows.h>
 
 using namespace std;
-
+using namespace boost::interprocess;
 //Initialization
 map<string, metadata> server::obj_meta_table = map<string, metadata>();
-
-
+map<string, string> server::ip_port_table = map<string, string>();
 int main()
 {
 	int forcin = 0, argc = 4;
-
 #pragma region test_zone
+// 	deque<int> test_queue;
+// 	test_queue.push_back(3);
+// 	test_queue.push_back(4);
+// 	cout << test_queue.at(1) << endl;
+// 	test_queue.pop_front();
+// 	cout << test_queue.size() << endl;
+// 	cin >> forcin;
+// 	string locking_suffix = ".lock";
+// 	string full_local_path = "I:\\testtt.txt";
+// 
+// 	creat_locking_file(full_local_path);
+// 	cin >> forcin;
+// 
+// 	file_lock test_lock("I:\\test_lock.lock");
+// 	test_lock.lock();
+// 		ofstream file_writer("I:\\test_lock.txt", ios::app | ios::binary);
+// 		const char* w = "fuckserver";
+// 		cin >> forcin;
+// 		file_writer.write(w,4);
+// 		file_writer.flush();
+// 		file_writer.close();
+// 		test_lock.unlock();
+// 	
+// 	cin >> argc;
+// 		char* testchar2 = (char*)malloc(sizeof(char)*4);	
+// 		char* new_insert = new char[5];
+// 		new_insert[0] = 'f';
+// 		new_insert[1] = 'u';
+// 		new_insert[2] = 'c';
+// 		new_insert[3] = 'k';
+// 		new_insert[4] = 'm';
+// 		strcpy(testchar2, (const char*)new_insert);
+// 		cout << testchar2 << endl;
+// 		new_insert = NULL;
+// 		delete new_insert;
+// 		//free((char*)new_insert);
+// 		//cout << testchar2 << endl;
+// 		cout << testchar2 << endl;
+// 		cin >> forcin;
+// 		return 0;
+// 	testchar = teststring;
+// 	free(teststring);
+// 	cout << testchar << endl;
+// 	cin >> forcin;
+// 	int fuck[2] = {0,1};
+// 	int* res = test_pointer(fuck);
+// 	cout << fuck[0] << endl;
+// 	cout << *(res+1) << endl;
+// 	cin >> forcin;
+	
+// 	ofstream test_open("I:\\fuck_up3.txt", ios::_Nocreate);
+// 	if (test_open)
+// 		cout << "true" << endl;
+// 	if (!test_open)
+// 		cout << "false" << endl;
+// 	cout << test_open.is_open() << endl;
+// 	cin >> forcin;
+// 	string lc = "I:\\test_random.txt";
+// 	string lc2 = "fuck";
+// 	ofstream test_out(lc.c_str(), ios::out | ios::binary);
+// 
+// 	test_out.write(lc.c_str(), lc.length());
+// 	test_out.flush();
+// 	test_out.write(lc2.c_str(),lc2.length());
+// 	test_out.flush();
+// 	test_out.close();
+// 
+// 	ofstream test_out2(lc.c_str(), ios::app | ios::binary);
+// 
+// 	test_out2.write(lc2.c_str(), lc2.length());
+// 	test_out2.flush();
+// 	test_out2.close();
+// 
+// 	 cin>> forcin;
 // 	for(int i = 0; i<100 ;i++)
 // 		cout << my_random_long() % 196608 << endl;
 // 
@@ -106,13 +186,14 @@ int main()
 #pragma region config_init
 	char* cur_dir = (char*)malloc(sizeof(char)*100);	
 	_getcwd(cur_dir, 1000);
-
-
+	string current_dir = cur_dir;
 	string config_file = "\\conf.txt";
-	char* config_path = strcat(cur_dir, config_file.c_str());
-	cout << config_path << endl;
+	string ip_port_f = "\\ip_port.txt";
 
-	FILE* fp = fopen(config_path, "rb");
+	string config_path = current_dir + config_file;
+	string ip_port_path = current_dir + ip_port_f;
+
+	FILE* fp = fopen(config_path.c_str(), "rb");
 	int lSize;
 	char * buffer;
 	size_t result;
@@ -129,6 +210,17 @@ int main()
 
 	fclose (fp);
 	free (buffer);
+
+	string temp_record = "";
+	ifstream ip_port_file(ip_port_path.c_str(), ios::in | ios::binary);
+	while(getline(ip_port_file, temp_record))
+	{
+		string temp_port = temp_record.substr(0, temp_record.find_first_of(","));
+		string temp_ip = temp_record.substr(temp_record.find_first_of(",") + 1);
+		server::ip_port_table.insert(make_pair(temp_port, temp_ip));
+	}
+	ip_port_file.close();
+
 #pragma endregion config_init
 
 	int thread_num = -1;
@@ -160,7 +252,7 @@ int main()
 		doc_root = config_content.substr(config_content.find("doc_root:") + 9, config_content.find_first_of("\r\n", config_content.find("doc_root:")) - config_content.find("doc_root:") - 9);
 	}
 
-	server new_server(ip, port, doc_root, thread_num, server_id);	
+	server new_server(ip, port, doc_root, thread_num, server_id);
 	new_server.run();
 
 	return 0;

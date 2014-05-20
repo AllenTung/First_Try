@@ -11,6 +11,7 @@
 #include <boost/bind.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/enable_shared_from_this.hpp>
+#include <boost/interprocess/sync/file_lock.hpp>
 #include <boost/asio.hpp>
 #include <algorithm>
 #include <time.h>
@@ -18,6 +19,8 @@
 #include <Windows.h>
 #include <direct.h>
 #include <fstream>
+#include <boost/thread.hpp>
+#include <boost/thread/mutex.hpp>
 /*#include "metadata.h"*/
 
 class metadata;
@@ -40,9 +43,8 @@ typedef boost::shared_ptr<boost::asio::ip::tcp::socket> socket_ptr;
 #define END_OF_FILE_EXCEPTION "End of file"
 
 #define BUFFER_SIZE 8192
-#define THREAD_NUMBER 5
 
-#define RECEIVE_BUFFER_SIZE 36864
+#define RECEIVE_BUFFER_SIZE 32768
 #define RECEIVE_BUFFER_SIZE_TINY 256
 
 //Request Type between client and server
@@ -72,7 +74,7 @@ typedef boost::shared_ptr<boost::asio::ip::tcp::socket> socket_ptr;
 
 //Max number of servers
 #define NUMBER_OF_SERVER 256
-#define STARTING_SERVER_ID 888
+#define STARTING_SERVER_ID 20888
 
 //All kinds of request method
 #define GET_REQUEST "GET"
@@ -83,6 +85,12 @@ typedef boost::shared_ptr<boost::asio::ip::tcp::socket> socket_ptr;
 #define TRANSMIT_DATA_BLOCK_REQUEST "TRANSMIT_DATA_BLOCK"
 #define TRANSMIT_PARITY_BLOCK_REQUEST "TRANSMIT_PARITY_BLOCK"
 #define RECONSTRUCT_REQUEST "RECONSTRUCT"
+/*These two could be seen as 2 sub-variant of the leading reconstruct request
+  which are used to remind the data or parity node how to transfer the object */
+#define LIGHT_WEIGHT_RECONSTRUCT_REQUEST "LIGHT_WEIGHT_RECONSTRUCT"
+#define NORMAL_RECONSTRUCT_REQUEST "NORMAL_RECONSTRUCT"
+/* Only received by or send by the master node to do the entire encoding process again to rescue the situation where more K nodes fail */
+#define TOTAL_RECONSTRUCT_REQUEST "TOTAL_RECONSTRUCT_REQUEST"
 
 //All kinds of server-status
 #define READY_FOR_POST_STATUS "ready_for_post"
@@ -93,6 +101,9 @@ typedef boost::shared_ptr<boost::asio::ip::tcp::socket> socket_ptr;
 #define UPDATE_DONE_STATUS "update_done"
 #define TRY_AGAIN_STATUS "try_again"
 #define OBJECT_NOT_FOUND_STATUS "object_not_found"
+#define CALL_FOR_LIGHT_WEIGHT_RECONSTRUCT_STATUS "call_for_light_weight_reconstruct"
+#define CALL_FOR_NORMAL_RECONSTRUCT_STATUS "call_for_normal_reconstruct"
+#define MISSION_ABORT_STATUS "mission_abort"
 
 
 extern vector<string> split(string& str,const char* c);
@@ -120,6 +131,18 @@ string return_full_path(string obj_name);
 
 string return_update_path(string obj_name);
 
+bool test_existence(string file_path);
+
+int* test_pointer(int recorder[]);
+
+unsigned int size_of_file(string file_path);
+
+string get_locking_file_path(string full_local_path);
+
+void creat_locking_file(string full_local_path);
+
+static int ec_port_helper = 1;
+int get_random_ec_port(int starting_num);
 
 template <typename Handler>
 void transmit_file(tcp::socket& socket, random_access_handle& file, Handler handler)

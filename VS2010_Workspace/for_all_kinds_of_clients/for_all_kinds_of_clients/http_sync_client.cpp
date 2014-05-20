@@ -8,6 +8,10 @@
 #include <boost/thread/thread.hpp>
 #include <boost/shared_ptr.hpp>
 #include <boost/enable_shared_from_this.hpp>
+#include <boost/thread.hpp>
+#include <boost/thread/mutex.hpp>
+#include <boost/interprocess/sync/file_lock.hpp>
+#include <boost/interprocess/sync/sharable_lock.hpp>
 #include "request.h"
 #include "common.h"
 #include <vector>
@@ -30,17 +34,33 @@ vector<io_service_ptr> io_service_pool;
 boost::asio::io_service& get_next_io_service()
 {
 	next_io_service++;
-	if (next_io_service == CLIENT_POOL_SIZE)
+	if (next_io_service == io_service_pool.size())
 	{
 		next_io_service = 0;
 	}
 	boost::asio::io_service& tmp_io = *io_service_pool[next_io_service];
 	return tmp_io;	
 }
-
+/************************************************************************/
+/* thread_num rules everything: client number, io_service number, thread number*/
+/************************************************************************/
 int main()
 {
 	 int forcin = 0;
+#pragma region test_zone
+// 	 boost::interprocess::file_lock test_lock("I:\\test_lock.lock");
+// 	 test_lock.lock();
+// 	 ofstream file_writer("I:\\test_lock.txt", ios::app | ios:: binary);
+// 	 
+// 	 string w = " fuck client";
+// 	 file_writer.write(w.c_str(),w.length());
+// 	 file_writer.flush();
+// 	 cout << "client flush it !" << endl;
+// 
+// 	 test_lock.unlock();
+// 	 file_writer.close();
+// 	 cin >> forcin;
+#pragma endregion test_zone
 
 
 #pragma region config_init
@@ -83,10 +103,10 @@ int main()
 		string temp_num = config_content.substr(config_content.find("thread_num:") + 11, config_content.find_first_of("\r\n", config_content.find("thread_num:")) - config_content.find("thread_num:") - 11);
 		thread_num = atoi(temp_num.c_str());
 	}
-	if (config_content.find("client_pool:") < NO_SUCH_SUBSTRING) {
-		string temp_pool_size = config_content.substr(config_content.find("client_pool:") + 12, config_content.find_first_of("\r\n", config_content.find("client_pool:")) - config_content.find("client_pool:") - 12);
-		client_pool = atoi(temp_pool_size.c_str());
-	}
+// 	if (config_content.find("client_pool:") < NO_SUCH_SUBSTRING) {
+// 		string temp_pool_size = config_content.substr(config_content.find("client_pool:") + 12, config_content.find_first_of("\r\n", config_content.find("client_pool:")) - config_content.find("client_pool:") - 12);
+// 		client_pool = atoi(temp_pool_size.c_str());
+// 	}
 	if (config_content.find("target_port:") < NO_SUCH_SUBSTRING) {
 		string temp_target_port = config_content.substr(config_content.find("target_port:") + 12, config_content.find_first_of("\r\n", config_content.find("target_port:")) - config_content.find("target_port:") - 12);
 		target_port = atoi(temp_target_port.c_str());
@@ -106,14 +126,14 @@ int main()
 	//Creat some different clients
  
 	vector<client_ptr> clients;
-	for (int i = 0; i < client_pool; i++)
+	for (int i = 0; i < thread_num; i++)
 	{
 		client_ptr new_client(new client(get_next_io_service(), next_io_service, target_port));
 		clients.push_back(new_client);
 	}
 
 	//Launch the request method of client
- 	for (int thread_id = 0; thread_id < client_pool; thread_id ++)
+ 	for (int thread_id = 0; thread_id < thread_num; thread_id ++)
 	{
 		if (thread_id%3 == 0)
 		{
@@ -131,7 +151,6 @@ int main()
 			boost::shared_ptr<boost::thread> thread(new boost::thread(boost::bind(&client::launch_client, clients[thread_id], request_type, thread_id)));
 			thread_pool.push_back(thread);
 		}
-		//cin >> forcin;
 	}
 
 	//Run all the io_services

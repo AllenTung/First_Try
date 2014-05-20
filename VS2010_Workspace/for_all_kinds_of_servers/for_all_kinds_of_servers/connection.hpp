@@ -12,7 +12,11 @@
 #include <boost/asio.hpp>
 #include <boost/array.hpp>
 #include <boost/noncopyable.hpp>
+#include <boost/thread.hpp>
+#include <boost/thread/mutex.hpp>
 #include <boost/shared_ptr.hpp>
+#include <boost/interprocess/sync/file_lock.hpp>
+#include <boost/interprocess/sync/sharable_lock.hpp>
 #include "common.hpp"
 #include <boost/enable_shared_from_this.hpp>
 #include "reply.hpp"
@@ -40,6 +44,9 @@ public:
 
 	int server_id;
 
+	int inner_server_id;
+
+	string local_ip;
 	//Indication of the busy-or-free status, 0 for free and 1 for busy
 	int busy;
 
@@ -77,7 +84,7 @@ public:
 	decoder decoder_;
 
 	// Construct a connection with the given io_service.
-	connection(boost::asio::io_service& io_service, request_handler& handler, int s_id);
+	connection(boost::asio::io_service& io_service, request_handler& handler, int s_id, string l_ip);
 
 /*	connection(boost::asio::io_service& io_service, const string filename);*/
 

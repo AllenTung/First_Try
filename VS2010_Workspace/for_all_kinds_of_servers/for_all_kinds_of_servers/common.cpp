@@ -5,6 +5,23 @@
 using namespace std;
 using std::ofstream;
 using std::ifstream;
+static int caculate_ec_port(int start_num)
+{
+	if (ec_port_helper >= 36)
+	{
+		ec_port_helper = 1;
+	}
+
+	int changing_port = start_num + (start_num - STARTING_SERVER_ID + 1) * 300 + ec_port_helper;
+	ec_port_helper++;
+	return changing_port;
+}
+int get_random_ec_port(int starting_num)
+{
+	//Starting number is actually identical to each server's own id
+	return caculate_ec_port(starting_num);
+
+}
 
 
 vector<string> split(string& str,const char* c)
@@ -159,3 +176,71 @@ string return_update_path(string obj_name)
 	return full_obj_name;
 }
 
+bool test_existence(string file_path)
+{
+	ofstream if_exists(file_path.c_str(), ios::out | ios::_Nocreate);
+	if (if_exists)
+	{
+		if_exists.close();
+		return true;
+	}
+	else
+	{
+		if_exists.close();
+		return false;
+	}
+}
+
+int* test_pointer(int recorder[])
+{
+	recorder[0] = 8;
+	recorder[1] = 88;
+	return recorder;
+}
+
+unsigned int size_of_file(string file_path)
+{
+	if(test_existence(file_path))
+	{
+// 		string locking_file = get_locking_file_path(file_path);
+// 		boost::interprocess::file_lock temp_lock(locking_file.c_str());
+// 		temp_lock.lock();
+		FILE* fp = fopen(file_path.c_str(), "rb");
+
+		fseek(fp, 0, SEEK_END);
+		unsigned int size = (unsigned int)ftell(fp);
+		fseek(fp, 0,SEEK_SET);
+
+		fclose(fp);
+/*		temp_lock.unlock();*/
+
+		return size;
+	}
+	else
+	{
+		cout << "File doesn't exist : " << file_path << endl;
+		return 0;
+	}
+
+}
+
+string get_locking_file_path(string full_local_path)
+{
+	// Using the full local path to get the locking file path by replacing the suffix
+	string locking_suffix = ".lock";
+	string locking_file_path = full_local_path.substr(0, full_local_path.find_last_of(".")) + locking_suffix;
+
+	return locking_file_path;
+}
+
+void creat_locking_file(string full_local_path)
+{
+	string tmp_path = get_locking_file_path(full_local_path);
+
+	ofstream locking_file(tmp_path.c_str(), ios::out | ios::binary);
+	string tmp_content = "lock for " + full_local_path;
+	locking_file.write(tmp_content.c_str(), tmp_content.length());
+
+	locking_file.close();
+	return;
+}

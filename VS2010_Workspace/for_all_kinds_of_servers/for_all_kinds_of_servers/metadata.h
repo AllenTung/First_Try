@@ -22,6 +22,10 @@ public:
 	int full_copy_location;
 	int first_parity_location;
 	int second_parity_location;
+	
+	//For rapid development....From encoder , for decoder
+	int readins;
+	int buffer_size;
 
 	vector<version> history_record;	
 

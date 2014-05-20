@@ -57,7 +57,7 @@ typedef boost::shared_ptr<boost::asio::ip::tcp::socket> socket_ptr;
 
 //Max number of servers
 #define NUMBER_OF_SERVER 256
-#define STARTING_SERVER_ID 888
+#define STARTING_SERVER_ID 20888
 
 //For Hashing
 #define HASHING_SEED 131

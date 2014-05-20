@@ -35,6 +35,8 @@ public:
 	/// Acceptor used to listen for incoming connections.
 	boost::asio::ip::tcp::acceptor acceptor_;
 
+	boost::asio::ip::tcp::acceptor acceptor_2;
+
 	/// The connection manager which owns all live connections.
 	connection_manager connection_manager_;
 

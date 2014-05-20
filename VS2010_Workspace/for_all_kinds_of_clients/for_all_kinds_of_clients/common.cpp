@@ -4,6 +4,7 @@
 #include <string>
 #include "common.h"
 using namespace std;
+class client;
 string get_random_file_name(int thread_id)
 {
 	//Current setting relates to the thread_id , just to check the concurrent read operation
@@ -104,7 +105,9 @@ unsigned int get_random_offset(unsigned int content_length)
  
 	if (content_length > 100)
 	{
+		
 		cout << "*****Random offset: " << random_offset << "**************in range: " << content_length << endl;
+
 	}
 
 	return random_offset;

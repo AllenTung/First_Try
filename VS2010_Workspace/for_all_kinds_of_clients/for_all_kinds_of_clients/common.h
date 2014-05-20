@@ -15,6 +15,7 @@
 #if defined(BOOST_ASIO_HAS_WINDOWS_OVERLAPPED_PTR)
 using namespace std;
 
+class client;
 
 
 using boost::asio::ip::tcp;
